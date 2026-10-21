@@ -1,0 +1,29 @@
+name: Test Beget SSH connection
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ssh-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH securely
+        env:
+          DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Verify connection and target directory (read only)
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$BEGET_HOST" && test -n "$BEGET_USER"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$BEGET_USER@$BEGET_HOST" 'whoami; test -d /home/h/help24pw/help24pw.beget.tech/public_html && echo "BKM_TARGET_DIRECTORY_OK"'
