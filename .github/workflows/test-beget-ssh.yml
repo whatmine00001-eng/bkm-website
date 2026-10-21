@@ -14,28 +14,43 @@ jobs:
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
         run: |
           set -eu
-          test -n "$DEPLOY_KEY"
-          test -n "$KNOWN_HOSTS"
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS" && test -n "$BEGET_HOST"
           install -d -m 700 ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          echo "Checking whether the configured SSH host has a usable ED25519 key..."
-          ssh-keygen -F "$BEGET_HOST" -f ~/.ssh/known_hosts > "$RUNNER_TEMP/bkm-host-matches" || { echo "::error::No matching host entry in BEGET_KNOWN_HOSTS"; exit 1; }
-          awk '$2 ~ /^(ssh-ed25519|ecdsa-sha2-|ssh-rsa)/ {print "Configured key type: " $2}' "$RUNNER_TEMP/bkm-host-matches"
-          awk '$2 == "ssh-ed25519" && $3 ~ /^AAAA/ {print $2 " " $3; exit}' "$RUNNER_TEMP/bkm-host-matches" > "$RUNNER_TEMP/bkm-host-ed25519.pub"
-          if [ ! -s "$RUNNER_TEMP/bkm-host-ed25519.pub" ]; then
-            echo "::error::BEGET_KNOWN_HOSTS has no valid ED25519 key for BEGET_HOST. Copy the complete 'hostname ssh-ed25519 AAAA...' line, not a fingerprint or SSH banner."
-            exit 1
-          fi
-          fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/bkm-host-ed25519.pub" -E sha256 | awk '{print $2}')
-          echo "Saved server key fingerprint: $fingerprint"
-          expected="SHA256:4+NodSyDnT38XilJxBKCva9nOl+04LnsAMKZpr0mh48"
-          if [ "$fingerprint" != "$expected" ]; then
-            echo "::error::Stored server key fingerprint differs from the fingerprint previously observed for pudge.beget.ru. Recheck with Beget support before continuing."
-            exit 1
-          fi
-          echo "Server key formatting and fingerprint check passed."
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import os
+          from pathlib import Path
+          host = os.environ["BEGET_HOST"].strip()
+          expected = "SHA256:4+NodSyDnT38XilJxBKCva9nOl+04LnsAMKZpr0mh48"
+          entries = Path.home().joinpath(".ssh/known_hosts").read_text().splitlines()
+          found = False
+          for entry in entries:
+              line = entry.strip()
+              if not line or line.startswith("#"):
+                  continue
+              fields = line.split()
+              if len(fields) < 3 or host not in fields[0].split(","):
+                  continue
+              if fields[1] != "ssh-ed25519":
+                  continue
+              found = True
+              try:
+                  blob = base64.b64decode(fields[2], validate=True)
+                  fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+              except (ValueError, base64.binascii.Error):
+                  raise SystemExit("Invalid base64 in BEGET_KNOWN_HOSTS")
+              print("Stored host key fingerprint:", fingerprint)
+              if fingerprint != expected:
+                  raise SystemExit("Stored fingerprint differs from previously observed Beget fingerprint. Verify the official fingerprint with Beget support.")
+              print("Known-hosts entry is correctly formatted.")
+              break
+          if not found:
+              raise SystemExit("No ED25519 entry for configured BEGET_HOST in BEGET_KNOWN_HOSTS.")
+          PY
       - name: Verify connection and target directory (read only)
         env:
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
