@@ -11,6 +11,7 @@ jobs:
         env:
           DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
         run: |
           set -eu
           test -n "$DEPLOY_KEY"
@@ -19,6 +20,8 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -lf ~/.ssh/known_hosts
+          ssh-keygen -F "$(printf '%s' "$BEGET_HOST")" -f ~/.ssh/known_hosts >/dev/null || true
       - name: Verify connection and target directory (read only)
         env:
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
@@ -26,4 +29,4 @@ jobs:
         run: |
           set -eu
           test -n "$BEGET_HOST" && test -n "$BEGET_USER"
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$BEGET_USER@$BEGET_HOST" 'whoami; test -d /home/h/help24pw/help24pw.beget.tech/public_html && echo "BKM_TARGET_DIRECTORY_OK"'
+          ssh -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$BEGET_USER@$BEGET_HOST" 'whoami; test -d /home/h/help24pw/help24pw.beget.tech/public_html && echo "BKM_TARGET_DIRECTORY_OK"'
