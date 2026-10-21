@@ -20,8 +20,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          ssh-keygen -lf ~/.ssh/known_hosts
-          ssh-keygen -F "$(printf '%s' "$BEGET_HOST")" -f ~/.ssh/known_hosts >/dev/null || true
+          ssh-keygen -F "$BEGET_HOST" -f ~/.ssh/known_hosts >/dev/null || { echo "Known-host entry missing for configured host"; exit 1; }
       - name: Verify connection and target directory (read only)
         env:
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
