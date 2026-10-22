@@ -1,14 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="745" height="235" viewBox="0 0 745 235" role="img" aria-label="БКМ — Для нас нет невозможного">
-<rect width="745" height="235" rx="0" fill="#06412F"/>
-<defs>
-<linearGradient id="greenTop" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#00442F"/><stop offset=".55" stop-color="#087548"/><stop offset="1" stop-color="#005135"/></linearGradient>
-<linearGradient id="greenBase" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#00442E"/><stop offset=".75" stop-color="#00633F"/><stop offset="1" stop-color="#0A774A"/></linearGradient>
-<linearGradient id="orange" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FF991F"/><stop offset="1" stop-color="#FF7000"/></linearGradient></defs>
-<path d="M114 23 H197 Q204 23 210 29 L255 79 H171 Z" fill="url(#greenTop)"/>
-<path d="M153 90 L192 127 L106 214 Q100 220 94 220 H20 Z" fill="url(#greenBase)"/>
-<path d="M171 79 H255 L294 119 Q300 125 294 134 L230 194 H154 L218 126 Z" fill="url(#orange)"/>
-<g font-family="'Arial Black',Arial,Helvetica,sans-serif">
-<text x="318" y="163" font-weight="900" font-size="148" textLength="417" lengthAdjust="spacingAndGlyphs" fill="#FFFFFF">БКМ</text>
-<text x="325" y="208" font-size="29" textLength="412" lengthAdjust="spacingAndGlyphs" fill="#F4F9F5">Для нас нет невозможного</text>
-</g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="БКМ — Сложное делаем простым" width="875" height="225" viewBox="0 0 875 225"><defs><linearGradient id="forest" x1="0" x2=".95" y1="0" y2="1"><stop offset="0" stop-color="#132E31"/><stop offset=".42" stop-color="#06543E"/><stop offset="1" stop-color="#002D22"/></linearGradient><linearGradient id="graphite" x1="0" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#424D51"/><stop offset="1" stop-color="#20282B"/></linearGradient><linearGradient id="flare" x1="0" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#FF9B27"/><stop offset=".65" stop-color="#FF7A00"/><stop offset="1" stop-color="#F35F00"/></linearGradient></defs><rect width="875" height="225" fill="#042F25" rx="12"/><g id="bkm-chevron">
+<path d="M102 29h81c8 0 12 2 18 8l76 74c5 5 5 11 0 16l-28 27-63-61c-5-5-8-7-15-7h-18Z" fill="url(#forest)"/>
+<path d="M95 82h65c7 0 11 2 15 7l50 49-62 62H51l63-61-31-31h34Z" fill="url(#graphite)"/>
+<path d="M168 86h63l52 51c5 5 5 12 0 17l-52 49h-73l65-65Z" fill="url(#flare)"/>
+<path d="M52 201h87l55-54-33-32h-50l29 31Z" fill="#171F22" opacity=".20"/>
+<path d="M196 209h48" stroke="#FF7A00" stroke-width="5" stroke-linecap="round"/>
+</g><g font-family="Arial Black, DejaVu Sans, Arial, sans-serif"><text x="308" y="159" font-size="150" font-weight="900" font-style="italic" letter-spacing="-11" textLength="530" lengthAdjust="spacingAndGlyphs" fill="#F5F7F6">БКМ</text><path d="M322 186h42" stroke="#FF7A00" stroke-width="5"/><text x="377" y="198" fill="#DEE8E2" font-size="26" font-weight="700" letter-spacing="5.1" textLength="305" lengthAdjust="spacingAndGlyphs">СЛОЖНОЕ ДЕЛАЕМ</text><text x="699" y="198" fill="#FF7A00" font-size="26" font-weight="800" letter-spacing="3.2" textLength="136" lengthAdjust="spacingAndGlyphs">ПРОСТЫМ</text></g></svg>
