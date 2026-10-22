@@ -6,14 +6,10 @@ on:
     branches:
       - design/bkm-modern-v1
     paths:
-      - 'news.html'
-      - 'news-*.html'
-      - 'assets/news.css'
-      - 'index.html'
-      - 'services.html'
-      - 'privacy.html'
-      - 'assets/*.js'
-      - 'api/*.php'
+      - '*.html'
+      - 'assets/**'
+      - 'scripts/**'
+      - '.github/workflows/publish-beget-preview.yml'
 
 permissions:
   contents: read
@@ -47,11 +43,15 @@ jobs:
           test -s assets/bkm-header.svg
           test -s assets/bkm-symbol.svg
           test -s assets/news.css
+          test -s assets/home-redesign.css
+          test -s assets/interior-redesign.css
+          test -s assets/home.js
           test -s privacy.html
           test -s assets/site-config.js
           test -s assets/analytics.js
           test -s assets/lead-form.js
           test -s api/lead.php
+          node --check assets/home.js
           node --check assets/site-config.js
           node --check assets/analytics.js
           node --check assets/lead-form.js
@@ -76,6 +76,7 @@ jobs:
               raise SystemExit("\n".join(bad))
           print("BKM local-link validation passed")
           PY
+          python3 scripts/build-production.py
 
       - name: Configure SSH for Beget
         env:
