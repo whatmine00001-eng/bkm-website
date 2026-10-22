@@ -1,0 +1,104 @@
+name: Prepare or publish 24bkm.com on Beget
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "prepare = private staging only; publish = copy verified build to 24bkm.com/public_html"
+        required: true
+        type: choice
+        default: prepare
+        options:
+          - prepare
+          - publish
+      confirmation:
+        description: "For publish, type exactly RELEASE_24BKM; leave empty for prepare"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout new BKM site
+        uses: actions/checkout@v4
+        with:
+          ref: design/bkm-modern-v1
+          persist-credentials: false
+
+      - name: Generate production-safe build (without CRM)
+        run: |
+          set -eu
+          python3 scripts/build-production.py
+          test -s _production_release/index.html
+          test -s _production_release/sitemap.xml
+          test -s _production_release/robots.txt
+          test ! -e _production_release/privacy.html
+          test ! -e _production_release/api/lead.php
+          if grep -R -i -l 'noindex,nofollow' _production_release/*.html; then
+            echo "::error::noindex remains in production pages"
+            exit 1
+          fi
+
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts > /dev/null
+
+      - name: Prepare private release folder on Beget
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          SHORT_SHA=$(git rev-parse --short=12 HEAD)
+          CANDIDATE="/home/h/help24pw/.bkm_releases/24bkm-${SHORT_SHA}"
+          ssh $SSH_OPTS "$USER@$HOST" "mkdir -p '$CANDIDATE'"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" _production_release/ "$USER@$HOST:$CANDIDATE/"
+          ssh $SSH_OPTS "$USER@$HOST" "test -s '$CANDIDATE/index.html' && test -s '$CANDIDATE/sitemap.xml' && test -s '$CANDIDATE/assets/bkm-header.svg'"
+          echo "Production candidate staged privately at $CANDIDATE; DNS and web root unchanged."
+
+      - name: Require explicit publish confirmation
+        if: inputs.mode == 'publish'
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$CONFIRMATION" = "RELEASE_24BKM" || {
+            echo "::error::To publish to 24bkm.com root, enter confirmation RELEASE_24BKM";
+            exit 1;
+          }
+
+      - name: Back up Beget web root and publish approved build
+        if: inputs.mode == 'publish'
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          ROOT="/home/h/help24pw/24bkm.com/public_html"
+          BACKUP="/home/h/help24pw/.bkm_backups/24bkm-$(date -u +%Y%m%dT%H%M%SZ)"
+          ssh $SSH_OPTS "$USER@$HOST" "test -d '$ROOT' && mkdir -p '$BACKUP' && tar -czf '$BACKUP/public_html-before-release.tar.gz' -C '$ROOT' . && if [ -f '$ROOT/index.php' ]; then mv '$ROOT/index.php' '$BACKUP/old-index.php'; fi"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" _production_release/ "$USER@$HOST:$ROOT/"
+          ssh $SSH_OPTS "$USER@$HOST" "test -s '$ROOT/index.html' && test -s '$ROOT/robots.txt' && test -s '$ROOT/sitemap.xml'"
+          echo "Files placed in primary Beget site root. BACKUP: $BACKUP"
+          echo "DO NOT change GoDaddy DNS until pre-cutover HTTP test against Beget passes."
