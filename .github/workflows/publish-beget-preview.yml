@@ -2,6 +2,13 @@ name: Publish BKM preview to Beget
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - design/bkm-modern-v1
+    paths:
+      - 'news.html'
+      - 'news-*.html'
+      - 'assets/news.css'
 
 permissions:
   contents: read
@@ -12,7 +19,7 @@ concurrency:
 
 jobs:
   publish-preview:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design/bkm-modern-v1'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout reviewed website source
