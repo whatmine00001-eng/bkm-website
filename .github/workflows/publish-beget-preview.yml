@@ -28,8 +28,29 @@ jobs:
             test -s "$file"
             grep -qi '<html' "$file"
           done
+          for file in news.html news-*.html; do
+            test -s "$file"
+            grep -qi '<html' "$file"
+          done
           test -s assets/bkm-header.svg
           test -s assets/bkm-symbol.svg
+          test -s assets/news.css
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          bad = []
+          for html in Path(".").glob("*.html"):
+              text = html.read_text(encoding="utf-8")
+              for target in re.findall(r'(?:href|src)="([^"]+)"', text):
+                  path = target.split("#")[0].split("?")[0]
+                  if not path or ":" in path or path.startswith(("#", "//", "/")):
+                      continue
+                  if not (html.parent / path).exists():
+                      bad.append(f"{html}: missing {path}")
+          if bad:
+              raise SystemExit("\n".join(bad))
+          print("BKM local-link validation passed")
+          PY
 
       - name: Configure SSH for Beget
         env:
@@ -56,5 +77,5 @@ jobs:
           TARGET="/home/h/help24pw/help24pw.beget.tech/public_html/bkm-preview"
           SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
           ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET'"
-          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html news-*.html assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
           echo "Published preview: http://help24pw.beget.tech/bkm-preview/index.html"
