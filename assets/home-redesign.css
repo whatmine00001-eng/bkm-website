@@ -10,6 +10,7 @@
 html{scroll-behavior:smooth;scroll-padding-top:105px}
 body{margin:0;background:var(--white);color:var(--ink);font:500 15px/1.65 "Manrope",Arial,sans-serif;overflow-x:hidden}
 body.menu-open{overflow:hidden}
+svg.icon{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 a{color:inherit;text-decoration:none}
 a:hover{color:var(--orange)}
 button,input,select,textarea{font:inherit}
@@ -164,7 +165,7 @@ img{max-width:100%}
 .form .note{font-size:10px;line-height:1.6;color:#788980;margin:10px 0 0}
 .footer{background:#091f1b;color:#dce9e2;padding:38px 0 22px}
 .footer__main{display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap}
-.footer__brand img{width:204px;height:auto;filter:brightness(0) invert(1)}
+.footer__brand img{width:204px;height:auto}
 .footer__links{display:flex;gap:20px;flex-wrap:wrap;font-size:12px;font-weight:700}
 .footer__contact{display:flex;flex-direction:column;gap:8px;font-size:12px}
 .footer__contact a:hover,.footer__links a:hover{color:var(--orange)}
@@ -191,7 +192,7 @@ img{max-width:100%}
  .top-bar__inner{min-height:32px;justify-content:center}.top-bar__inner>span{display:none}.top-bar__links{gap:17px}
  .header-inner{height:73px}.brand img{width:208px}
  .menu-toggle{display:flex;margin-left:auto}
- .nav{display:none;position:fixed;left:0;right:0;top:73px;z-index:101;background:#fff;box-shadow:0 22px 36px rgba(0,0,0,.17);padding:19px max(18px,5vw) 28px;flex-direction:column;align-items:stretch;gap:0;border-top:1px solid var(--line)}
+ .nav{display:none;position:absolute;left:0;right:0;top:100%;z-index:101;background:#fff;box-shadow:0 22px 36px rgba(0,0,0,.17);padding:19px max(18px,5vw) 28px;flex-direction:column;align-items:stretch;gap:0;border-top:1px solid var(--line)}
  .nav[data-open="true"]{display:flex}
  .nav a{padding:12px 0;border-bottom:1px solid #e6eee9;font-size:14px}
  .nav .btn{margin-top:17px;min-height:45px}
