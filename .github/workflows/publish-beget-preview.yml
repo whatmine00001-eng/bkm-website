@@ -100,9 +100,9 @@ jobs:
           BEGET_USER: ${{ secrets.BEGET_USER }}
         run: |
           set -eu
-          TARGET="/home/h/help24pw/help24pw.beget.tech/public_html/bkm-preview"
+          TARGET="/home/h/help24pw/test.24bkm.com/public_html/bkm-preview"
           SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
           ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET'"
           rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html news-*.html privacy.html api assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
           echo "The preview uses HTTP. Online CRM submission is disabled until HTTPS and privacy requirements are met."
-          echo "Published preview: http://help24pw.beget.tech/bkm-preview/index.html"
+          echo "Published preview: http://test.24bkm.com/bkm-preview/index.html"
