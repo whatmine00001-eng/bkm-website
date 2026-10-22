@@ -24,10 +24,10 @@ jobs:
       - name: Check website files
         run: |
           set -eu
-          test -s index.html
-          test -s services.html
-          grep -qi '<html' index.html
-          grep -qi '<html' services.html
+          for file in index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html; do
+            test -s "$file"
+            grep -qi '<html' "$file"
+          done
 
       - name: Configure SSH for Beget
         env:
@@ -54,5 +54,5 @@ jobs:
           TARGET="/home/h/help24pw/help24pw.beget.tech/public_html/bkm-preview"
           SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
           ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET'"
-          rsync -av --chmod=F644 -e "ssh $SSH_OPTS" index.html services.html "$BEGET_USER@$BEGET_HOST:$TARGET/"
+          rsync -av --chmod=F644 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html "$BEGET_USER@$BEGET_HOST:$TARGET/"
           echo "Published preview: https://help24pw.beget.tech/bkm-preview/index.html"
