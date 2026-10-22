@@ -1,0 +1,88 @@
+name: Publish BKM preview to Beget
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - design/bkm-modern-v1
+    paths:
+      - 'news.html'
+      - 'news-*.html'
+      - 'assets/news.css'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-preview
+  cancel-in-progress: false
+
+jobs:
+  publish-preview:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design/bkm-modern-v1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout reviewed website source
+        uses: actions/checkout@v4
+        with:
+          ref: design/bkm-modern-v1
+          persist-credentials: false
+
+      - name: Check website files
+        run: |
+          set -eu
+          for file in index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html; do
+            test -s "$file"
+            grep -qi '<html' "$file"
+          done
+          for file in news.html news-*.html; do
+            test -s "$file"
+            grep -qi '<html' "$file"
+          done
+          test -s assets/bkm-header.svg
+          test -s assets/bkm-symbol.svg
+          test -s assets/news.css
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          bad = []
+          for html in Path(".").glob("*.html"):
+              text = html.read_text(encoding="utf-8")
+              for target in re.findall(r'(?:href|src)="([^"]+)"', text):
+                  path = target.split("#")[0].split("?")[0]
+                  if not path or ":" in path or path.startswith(("#", "//", "/")):
+                      continue
+                  if not (html.parent / path).exists():
+                      bad.append(f"{html}: missing {path}")
+          if bad:
+              raise SystemExit("\n".join(bad))
+          print("BKM local-link validation passed")
+          PY
+
+      - name: Configure SSH for Beget
+        env:
+          DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS"
+          test -n "$BEGET_HOST" && test -n "$BEGET_USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$BEGET_HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Publish isolated preview (do not touch live site)
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          TARGET="/home/h/help24pw/help24pw.beget.tech/public_html/bkm-preview"
+          SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
+          ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET'"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html news-*.html assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
+          echo "Published preview: http://help24pw.beget.tech/bkm-preview/index.html"
