@@ -39,7 +39,7 @@ $webhook = trim((string) ($config['bitrix_webhook_url'] ?? ''));
 if ($webhook === '') {
     failCheck('bitrix_webhook_url missing in private config');
 }
-if (strpos($webhook, '\\\\') !== false) {
+if (strpos($webhook, chr(92)) !== false) {
     failCheck('webhook URL contains a backslash; use https://, not https\\://');
 }
 $parts = parse_url($webhook);
