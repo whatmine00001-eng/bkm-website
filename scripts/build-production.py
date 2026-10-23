@@ -74,8 +74,8 @@ for name in PAGES:
             raise SystemExit("Expected CRM-ready form on homepage; found " + str(count))
         html = html.replace('<script src="assets/lead-form.js" defer></script>', "")
     elif name == "index.html" and CRM_RELEASE == "on":
-        if '<form class="form" id="bkm-lead-form">' not in html or
-                'href="privacy.html"' not in html:
+        if ('<form class="form" id="bkm-lead-form">' not in html or
+                'href="privacy.html"' not in html):
             raise SystemExit("CRM release blocked: expected lead form / privacy link missing")
         html = html.replace(
             'На этапе тестирования автоматическая отправка в CRM выключена. '
