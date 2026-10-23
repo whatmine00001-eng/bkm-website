@@ -11,10 +11,28 @@ from urllib.parse import urljoin
 from xml.sax.saxutils import escape as xml_escape
 import re
 import shutil
+import os
 
 ROOT = Path.cwd()
 DEST = ROOT / "_production_release"
 DOMAIN = "https://24bkm.com/"
+CRM_RELEASE = os.environ.get("BKM_CRM_RELEASE", "off").strip().lower()
+if CRM_RELEASE not in ("off", "on"):
+    raise SystemExit("BKM_CRM_RELEASE must be 'off' or 'on'")
+# This file must be replaced by the actual policy approved by the company.
+APPROVED_POLICY = ROOT / "approved" / "privacy.html"
+if CRM_RELEASE == "on":
+    if not APPROVED_POLICY.is_file():
+        raise SystemExit("CRM release blocked: approved/privacy.html is missing")
+    policy_source = APPROVED_POLICY.read_text(encoding="utf-8")
+    if not re.search(r'<meta\s+name=["\']bkm-policy-status["\']\s+content=["\']approved["\']', policy_source, re.I):
+        raise SystemExit("CRM release blocked: policy approval marker is missing")
+    if not re.search(r'<html\b', policy_source, re.I) or not re.search(r'</html\s*>', policy_source, re.I):
+        raise SystemExit("CRM release blocked: invalid approved privacy HTML")
+    if any(token in policy_source.lower() for token in
+           ("[указать", "[вписать", "название организации]", "не утверждённая политика",
+            "документ для согласования", "bkm_policy_placeholder")):
+        raise SystemExit("CRM release blocked: policy contains placeholders")
 SERVICE_FILES = [
     "index.html", "services.html", "customs-clearance.html",
     "international-freight.html", "freight-forwarding.html",
@@ -47,7 +65,7 @@ for name in PAGES:
         r'<meta\s+name=["\']robots["\']\s+content=["\']noindex\s*,\s*nofollow["\']\s*/?>',
         "", html, flags=re.I
     )
-    if name == "index.html":
+    if name == "index.html" and CRM_RELEASE == "off":
         html, count = re.subn(
             r'<form\s+class="form"\s+id="bkm-lead-form"[^>]*>[\s\S]*?</form>',
             lambda _: REPLACEMENT_CONTACT, html, count=1, flags=re.I
@@ -55,6 +73,16 @@ for name in PAGES:
         if count != 1:
             raise SystemExit("Expected CRM-ready form on homepage; found " + str(count))
         html = html.replace('<script src="assets/lead-form.js" defer></script>', "")
+    elif name == "index.html" and CRM_RELEASE == "on":
+        if '<form class="form" id="bkm-lead-form">' not in html or
+                'href="privacy.html"' not in html:
+            raise SystemExit("CRM release blocked: expected lead form / privacy link missing")
+        html = html.replace(
+            'На этапе тестирования автоматическая отправка в CRM выключена. '
+            'Для отправки обращения откроется ваша почтовая программа.',
+            'Передача заявки защищена HTTPS. Мы используем контакты '
+            'только для ответа на обращение.'
+        )
     canonical = DOMAIN if name == "index.html" else urljoin(DOMAIN, name)
     html = re.sub(
         r'</head>', '<link rel="canonical" href="' + canonical + '"></head>',
@@ -75,7 +103,23 @@ shutil.copytree(
     ]
 )
 
-# Explicitly do not ship privacy.html, api/lead.php, markdown, .github or credentials.
+# The default production build has NO personal-data handler.
+# The opt-in CRM build is deliberately impossible without company-approved policy.
+if CRM_RELEASE == "on":
+    (DEST / "privacy.html").write_text(
+        re.sub(r'</head>', '<link rel="canonical" href="https://24bkm.com/privacy.html"></head>',
+               policy_source, count=1, flags=re.I), encoding="utf-8"
+    )
+    (DEST / "api").mkdir(exist_ok=True)
+    shutil.copy2(ROOT / "api" / "lead.php", DEST / "api" / "lead.php")
+    cfg_path = DEST / "assets" / "site-config.js"
+    cfg = cfg_path.read_text(encoding="utf-8")
+    if cfg.count("formsEnabled: false") != 1:
+        raise SystemExit("CRM release blocked: unsafe public configuration")
+    cfg_path.write_text(cfg.replace("formsEnabled: false", "formsEnabled: true", 1),
+                        encoding="utf-8")
+
+# Explicitly do not ship the draft privacy.html or any private credentials.
 (DEST / "robots.txt").write_text(
     "User-agent: *\nAllow: /\nSitemap: https://24bkm.com/sitemap.xml\n",
     encoding="utf-8"
@@ -100,7 +144,15 @@ for path in DEST.glob("*.html"):
             bad.append(f"{path.name}: {rel}")
 if bad:
     raise SystemExit("Broken local links:\n" + "\n".join(bad))
-if (DEST / "privacy.html").exists() or (DEST / "api").exists():
-    raise SystemExit("Unapproved privacy draft or API accidentally included")
+if CRM_RELEASE == "off":
+    if (DEST / "privacy.html").exists() or (DEST / "api").exists():
+        raise SystemExit("Unapproved privacy draft or API accidentally included")
+    if "formsEnabled: true" in (DEST / "assets" / "site-config.js").read_text(encoding="utf-8"):
+        raise SystemExit("CRM unexpectedly enabled in default release")
+else:
+    if not (DEST / "api" / "lead.php").is_file() or not (DEST / "privacy.html").is_file():
+        raise SystemExit("CRM release missing backend or approved privacy policy")
+    if "formsEnabled: true" not in (DEST / "assets" / "site-config.js").read_text(encoding="utf-8"):
+        raise SystemExit("CRM feature flag remains off")
 assert not (DEST / "index.php").exists()
-print(f"Production candidate validated: {len(PAGES)} HTML files; no live form/API; sitemap present.")
+print(f"Production candidate validated: {len(PAGES)} HTML files; CRM={CRM_RELEASE}; sitemap present.")
