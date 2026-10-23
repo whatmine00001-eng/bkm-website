@@ -51,5 +51,5 @@ jobs:
           CHECK_DIR="/home/h/help24pw/.bkm_releases/crm-connection-check"
           ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "mkdir -p '$CHECK_DIR' && chmod 700 '$CHECK_DIR'"
           scp $SSH_OPTS scripts/check-crm-config.php "$REMOTE_USER@$REMOTE_HOST:$CHECK_DIR/preflight.php"
-          ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "chmod 600 '$CHECK_DIR/preflight.php'; trap 'rm -f \"$CHECK_DIR/preflight.php\"' EXIT; php -l '$CHECK_DIR/preflight.php' && php '$CHECK_DIR/preflight.php' --connection-only"
+          ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "chmod 600 '$CHECK_DIR/preflight.php'; trap 'rm -f \"$CHECK_DIR/preflight.php\"' EXIT; php8.2 -l '$CHECK_DIR/preflight.php' && php8.2 '$CHECK_DIR/preflight.php' --connection-only"
           echo "Read-only diagnostic finished. No CRM leads were created and the website was not modified."
