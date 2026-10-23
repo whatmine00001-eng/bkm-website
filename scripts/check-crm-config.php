@@ -36,14 +36,32 @@ if (strlen($salt) < 24 || stripos($salt, 'REPLACE') !== false) {
     failCheck('rate_salt must be a unique long secret');
 }
 $webhook = trim((string) ($config['bitrix_webhook_url'] ?? ''));
+if ($webhook === '') {
+    failCheck('bitrix_webhook_url missing in private config');
+}
+if (strpos($webhook, '\\\\') !== false) {
+    failCheck('webhook URL contains a backslash; use https://, not https\\://');
+}
 $parts = parse_url($webhook);
-if (!is_array($parts) ||
-    ($parts['scheme'] ?? '') !== 'https' ||
-    strtolower((string) ($parts['host'] ?? '')) !== 'bitrix.24bkm.com' ||
-    !preg_match('~^/rest/[0-9]+/[A-Za-z0-9_-]+/?$~', (string) ($parts['path'] ?? '')) ||
-    isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) ||
+if (!is_array($parts)) {
+    failCheck('webhook URL cannot be parsed; check the quotation marks and protocol');
+}
+if (($parts['scheme'] ?? '') !== 'https') {
+    failCheck('webhook URL must begin with https://');
+}
+if (strtolower((string) ($parts['host'] ?? '')) !== 'bitrix.24bkm.com') {
+    failCheck('webhook URL hostname is not bitrix.24bkm.com');
+}
+$path = (string) ($parts['path'] ?? '');
+if (preg_match('~\\.(?:json|php)$~i', $path)) {
+    failCheck('webhook URL contains an API method; copy the UPPER webhook URL without crm.lead.add.json');
+}
+if (!preg_match('~^/rest/[0-9]+/[A-Za-z0-9_-]+/?$~', $path)) {
+    failCheck('webhook URL path must be /rest/NUMERIC_ID/SECRET/ without anything after the last slash');
+}
+if (isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) ||
     isset($parts['fragment']) || isset($parts['port'])) {
-    failCheck('invalid webhook URL: check private config');
+    failCheck('webhook URL must not contain user, password, port, question mark or fragment');
 }
 if (isset($config['assigned_by_id']) &&
     (!filter_var($config['assigned_by_id'], FILTER_VALIDATE_INT) ||
