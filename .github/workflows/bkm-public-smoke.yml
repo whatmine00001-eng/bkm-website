@@ -1,0 +1,50 @@
+name: BKM Public Site Smoke Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".releases/bkm-smoke-20261023.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify real Beget HTTP web root
+        run: |
+          set -eu
+          BASE="http://24bkm.com"
+          RESOLVE="24bkm.com:80:45.130.41.212"
+          curl --resolve "$RESOLVE" -sS -m 25 -D /tmp/bkm_headers -o /tmp/bkm_index "$BASE/index.html"
+          echo "HTTP headers:"
+          head -n 15 /tmp/bkm_headers
+          grep -q 'assets/home-brand-final.css' /tmp/bkm_index
+          grep -q 'БКМ · Надёжные импортные решения' /tmp/bkm_index
+          grep -q 'Для нас' /tmp/bkm_index
+          test "$(wc -c </tmp/bkm_index)" -gt 3000
+          for asset in assets/bkm-header.svg assets/bkm-logo-dark.svg assets/home-brand-final.css news.html sitemap.xml; do
+            status=$(curl --resolve "$RESOLVE" -sS -m 15 -o /dev/null -w '%{http_code}' "$BASE/$asset")
+            echo "$asset : $status"
+            test "$status" = 200
+          done
+          if grep -i 'noindex,nofollow' /tmp/bkm_index; then
+            echo "::error::Production site still contains noindex"
+            exit 1
+          fi
+          echo "Beget HTTP pages, exact artwork and new styles are publicly reachable."
+
+      - name: Report public HTTPS certificate status
+        run: |
+          set +e
+          curl -sSI -L -m 25 https://24bkm.com/ > /tmp/bkm_ssl_headers 2> /tmp/bkm_ssl_error
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "HTTPS certificate check succeeded:"
+            head -n 12 /tmp/bkm_ssl_headers
+          else
+            echo "::warning::HTTPS still needs attention (curl exit code $status)."
+            head -n 5 /tmp/bkm_ssl_error
+          fi
