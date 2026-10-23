@@ -79,6 +79,7 @@ jobs:
           PY
           python3 scripts/test_crm_release.py
           python3 scripts/build-production.py
+          python3 scripts/test_contacts.py
 
       - name: Configure SSH for Beget
         env:

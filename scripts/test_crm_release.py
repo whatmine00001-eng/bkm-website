@@ -49,7 +49,7 @@ def main():
         assert (dest / "index.html").exists()
         assert not (dest / "privacy.html").exists()
         assert not (dest / "api").exists()
-        assert 'mailto:info@bkmcs.ru' in (dest / "index.html").read_text()
+        assert 'mailto:info@24bkm.com' in (dest / "index.html").read_text()
         assert 'formsEnabled: false' in (dest / "assets" / "site-config.js").read_text()
         assert "noindex,nofollow" not in (dest / "index.html").read_text()
 

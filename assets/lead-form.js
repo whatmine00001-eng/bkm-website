@@ -67,7 +67,7 @@
         "Груз: " + payload.cargo,
         "Комментарий: " + payload.details
       ].join("\n");
-      location.href = "mailto:info@bkmcs.ru?subject=" +
+      location.href = "mailto:info@24bkm.com?subject=" +
         encodeURIComponent("Запрос с сайта БКМ") + "&body=" + encodeURIComponent(body);
       feedback("Откроется почтовая программа. Отправку письма нужно подтвердить там.", "info");
       return;
@@ -92,7 +92,7 @@
       form.reset();
       if (typeof window.BKMTrackGoal === "function") window.BKMTrackGoal("bkm_lead_success");
     } catch (_) {
-      feedback("Не удалось подтвердить получение заявки. Пожалуйста, позвоните нам или отправьте письмо на info@bkmcs.ru.", "error");
+      feedback("Не удалось подтвердить получение заявки. Пожалуйста, позвоните нам или отправьте письмо на info@24bkm.com.", "error");
     } finally {
       if (button) {
         button.disabled = false;
