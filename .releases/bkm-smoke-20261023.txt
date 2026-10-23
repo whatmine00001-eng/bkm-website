@@ -1,0 +1,2 @@
+Read-only check of BKM home page, official logo, navigation and SSL after 23 Oct 2026 branding rollout.
+No website file or DNS mutations in this check.
