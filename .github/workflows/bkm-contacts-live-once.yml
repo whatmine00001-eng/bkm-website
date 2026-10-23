@@ -1,0 +1,90 @@
+name: BKM Contact Update - One-time Production Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".releases/bkm-contact-20261023.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+
+jobs:
+  update-public-contacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout validated BKM design revision
+        uses: actions/checkout@v4
+        with:
+          ref: b0fe7d14009075689d38f1af3fd077c4f1be4e47
+          persist-credentials: false
+
+      - name: Build and verify public site contact details
+        env:
+          BKM_CRM_RELEASE: off
+        run: |
+          set -eu
+          python3 scripts/test_crm_release.py
+          python3 scripts/build-production.py
+          python3 scripts/test_contacts.py
+          test ! -e _production_release/api/lead.php
+          test ! -e _production_release/privacy.html
+          node --check assets/lead-form.js
+          node --check assets/site-config.js
+          node --check assets/analytics.js
+          python3 - <<'PY'
+          from pathlib import Path
+          pages=list(Path('_production_release').glob('*.html'))
+          assert len(pages)>=14, len(pages)
+          for p in pages:
+              s=p.read_text(encoding='utf-8')
+              assert 'noindex,nofollow' not in s, p
+              for old in ('info@bkmcs.ru', '88007758812', '775-88-12'):
+                  assert old not in s, (p,old)
+              assert 'mailto:info@24bkm.com' in s, p
+              assert 'tel:+78007077902' in s, p
+          print('Full production contact check PASSED:',len(pages),'pages')
+          PY
+
+      - name: Set up SSH for Beget
+        env:
+          DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Backup and publish 24bkm.com contacts
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          ROOT="/home/h/help24pw/24bkm.com/public_html"
+          BACKUP="/home/h/help24pw/.bkm_backups/contact-20261023-$(date -u +%Y%m%dT%H%M%SZ)"
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          ssh $SSH_OPTS "$USER@$HOST" "test -d '$ROOT' && mkdir -p '$BACKUP' && tar -czf '$BACKUP/public_html-before-contact-update.tar.gz' -C '$ROOT' ."
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" _production_release/ "$USER@$HOST:$ROOT/"
+          ssh $SSH_OPTS "$USER@$HOST" "test -s '$ROOT/index.html' && test -s '$ROOT/sitemap.xml' && grep -q 'info@24bkm.com' '$ROOT/index.html' && grep -q '8 800 707-79-02' '$ROOT/index.html' && ! grep -q 'info@bkmcs.ru' '$ROOT/index.html' && ! grep -q '775-88-12' '$ROOT/index.html'"
+          echo "BKM contact details published to 24bkm.com. Backup saved: $BACKUP"
+
+      - name: External Beget HTTP smoke check
+        run: |
+          set -eu
+          curl --resolve 24bkm.com:80:45.130.41.212 -sS -m 30 -o /tmp/bkm_contact_live -D /tmp/bkm_contact_headers http://24bkm.com/index.html
+          grep -q 'info@24bkm.com' /tmp/bkm_contact_live
+          grep -q '8 800 707-79-02' /tmp/bkm_contact_live
+          ! grep -q 'info@bkmcs.ru' /tmp/bkm_contact_live
+          ! grep -q '775-88-12' /tmp/bkm_contact_live
+          echo "LIVE Beget HTTP contact test passed: new phone and email visible."
