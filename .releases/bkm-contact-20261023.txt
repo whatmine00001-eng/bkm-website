@@ -1,0 +1,5 @@
+BKM 24bkm.com contact information release — 23 October 2026.
+Authorized change: phone 8 800 707-79-02, email info@24bkm.com.
+Validated source revision: b0fe7d14009075689d38f1af3fd077c4f1be4e47.
+No CRM activation; production CRM release mode remains off.
+Back up current Beget public_html and update all 14 site pages, links and scripts.
