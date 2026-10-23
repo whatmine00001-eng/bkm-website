@@ -1,3 +1,5 @@
 Read-only connection check for BKM website ↔ private Bitrix24 API.
 No test customer data, no CRM lead creation, no public site changes.
 Run diagnostic against Beget's private config with current enabled=false and privacy_approved=false.
+
+Retry: explicitly use php8.2 on Beget CLI, as recommended by Beget documentation.
