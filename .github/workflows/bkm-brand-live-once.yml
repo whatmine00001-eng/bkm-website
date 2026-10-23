@@ -1,0 +1,76 @@
+name: BKM Brand Refresh - One-time Production Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".releases/bkm-brand-20261023.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout approved BKM site revision
+        uses: actions/checkout@v4
+        with:
+          ref: 09b4de8ed83a8dbe73fae1b3b83ceb7633b1d34c
+          persist-credentials: false
+
+      - name: Validate and assemble production site
+        run: |
+          set -eu
+          python3 scripts/build-production.py
+          for path in index.html services.html news.html sitemap.xml robots.txt assets/home-redesign.css assets/home-brand-final.css assets/bkm-header.svg assets/bkm-logo-dark.svg; do
+            test -s "_production_release/$path"
+          done
+          grep -q 'class="hero__brand"' _production_release/index.html
+          grep -q 'assets/home-brand-final.css' _production_release/index.html
+          grep -q 'data:image/png;base64,' _production_release/assets/bkm-header.svg
+          grep -q 'data:image/png;base64,' _production_release/assets/bkm-logo-dark.svg
+          test ! -e _production_release/api/lead.php
+          test ! -e _production_release/privacy.html
+          node --check assets/home.js
+          node --check assets/analytics.js
+          node --check assets/site-config.js
+          if grep -i -l 'noindex,nofollow' _production_release/*.html; then
+            echo "::error::Preview noindex remains in production output"
+            exit 1
+          fi
+
+      - name: Set up secure SSH connection
+        env:
+          SSH_PRIVATE: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          REMOTE_HOST: ${{ secrets.BEGET_HOST }}
+          REMOTE_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_PRIVATE" && test -n "$SSH_HOSTS"
+          test -n "$REMOTE_HOST" && test -n "$REMOTE_USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$REMOTE_HOST" -f ~/.ssh/known_hosts > /dev/null
+
+      - name: Back up and deploy to Beget public website
+        env:
+          REMOTE_HOST: ${{ secrets.BEGET_HOST }}
+          REMOTE_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          ROOT="/home/h/help24pw/24bkm.com/public_html"
+          BACKUP="/home/h/help24pw/.bkm_backups/bkm-brand-20261023-$(date -u +%Y%m%dT%H%M%SZ)"
+          SSH="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          ssh $SSH "$REMOTE_USER@$REMOTE_HOST" "test -d '$ROOT' && mkdir -p '$BACKUP' && tar -czf '$BACKUP/public_html-before-release.tar.gz' -C '$ROOT' . && if [ -f '$ROOT/index.php' ]; then mv '$ROOT/index.php' '$BACKUP/old-index.php'; fi"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH" _production_release/ "$REMOTE_USER@$REMOTE_HOST:$ROOT/"
+          ssh $SSH "$REMOTE_USER@$REMOTE_HOST" "test -s '$ROOT/index.html' && test -s '$ROOT/assets/bkm-header.svg' && test -s '$ROOT/assets/home-brand-final.css' && test -s '$ROOT/sitemap.xml' && grep -q 'data:image/png;base64,' '$ROOT/assets/bkm-header.svg'"
+          echo "BKM 24bkm.com website files updated. Backup: $BACKUP"
+          echo "Please separately validate live HTTPS certificate and browser appearance."
