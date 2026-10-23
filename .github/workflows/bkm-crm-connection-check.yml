@@ -1,0 +1,55 @@
+name: BKM Bitrix24 Webhook Connection Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".releases/bkm-crm-check-20261023.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  check-crm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout safe CRM diagnostic from the reviewed website
+        uses: actions/checkout@v4
+        with:
+          ref: design/bkm-modern-v1
+          persist-credentials: false
+
+      - name: Check diagnostic code syntax
+        run: |
+          set -eu
+          php -l scripts/check-crm-config.php
+
+      - name: Configure secured SSH for Beget
+        env:
+          SSH_PRIVATE: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          REMOTE_HOST: ${{ secrets.BEGET_HOST }}
+          REMOTE_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_PRIVATE" && test -n "$SSH_HOSTS"
+          test -n "$REMOTE_HOST" && test -n "$REMOTE_USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$REMOTE_HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Verify private Beget config and Bitrix24 API without creating leads
+        env:
+          REMOTE_HOST: ${{ secrets.BEGET_HOST }}
+          REMOTE_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          CHECK_DIR="/home/h/help24pw/.bkm_releases/crm-connection-check"
+          ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "mkdir -p '$CHECK_DIR' && chmod 700 '$CHECK_DIR'"
+          scp $SSH_OPTS scripts/check-crm-config.php "$REMOTE_USER@$REMOTE_HOST:$CHECK_DIR/preflight.php"
+          ssh $SSH_OPTS "$REMOTE_USER@$REMOTE_HOST" "chmod 600 '$CHECK_DIR/preflight.php'; trap 'rm -f \"$CHECK_DIR/preflight.php\"' EXIT; php -l '$CHECK_DIR/preflight.php' && php '$CHECK_DIR/preflight.php' --connection-only"
+          echo "Read-only diagnostic finished. No CRM leads were created and the website was not modified."
