@@ -1,0 +1,3 @@
+Read-only connection check for BKM website ↔ private Bitrix24 API.
+No test customer data, no CRM lead creation, no public site changes.
+Run diagnostic against Beget's private config with current enabled=false and privacy_approved=false.
