@@ -106,7 +106,7 @@ jobs:
           SHORT_SHA=$(git rev-parse --short=12 HEAD)
           CANDIDATE="/home/h/help24pw/.bkm_releases/24bkm-${SHORT_SHA}"
           scp $SSH_OPTS scripts/check-crm-config.php "$USER@$HOST:$CANDIDATE/.bkm_crm_preflight.php"
-          ssh $SSH_OPTS "$USER@$HOST" "php '$CANDIDATE/.bkm_crm_preflight.php' && rm -f '$CANDIDATE/.bkm_crm_preflight.php'"
+          ssh $SSH_OPTS "$USER@$HOST" "php8.2 '$CANDIDATE/.bkm_crm_preflight.php' && rm -f '$CANDIDATE/.bkm_crm_preflight.php'"
 
       - name: Require explicit publish confirmation
         if: inputs.mode == 'publish'
