@@ -5,6 +5,8 @@ declare(strict_types=1);
  * Production release preflight. This file is uploaded to a PRIVATE Beget
  * staging directory, NEVER to 24bkm.com/public_html.
  * Prints no webhook secrets and creates no test CRM leads.
+ * --connection-only: verify private config and CRM API without requiring
+ * the website's approval switches to be enabled.
  */
 function failCheck(string $message): void {
     fwrite(STDERR, "BKM CRM preflight failed: " . $message . PHP_EOL);
@@ -21,8 +23,12 @@ if (!is_readable($file)) {
     failCheck('private config file is not readable');
 }
 $config = require $file;
-if (!is_array($config) || ($config['enabled'] ?? false) !== true ||
-    ($config['privacy_approved'] ?? false) !== true) {
+$connectionOnly = in_array('--connection-only', $argv ?? [], true);
+if (!is_array($config)) {
+    failCheck('private config is not a PHP array');
+}
+if (!$connectionOnly && (($config['enabled'] ?? false) !== true ||
+    ($config['privacy_approved'] ?? false) !== true)) {
     failCheck('CRM or privacy approval is disabled');
 }
 $salt = (string) ($config['rate_salt'] ?? '');
@@ -76,4 +82,6 @@ if ($curlError !== 0 || $code !== 200 || !is_array($json) ||
     !isset($json['result']['PHONE'])) {
     failCheck('CRM API check failed; verify webhook permissions and HTTPS');
 }
-fwrite(STDOUT, "BKM CRM preflight passed: API available; private config enabled." . PHP_EOL);
+fwrite(STDOUT, $connectionOnly
+    ? "BKM CRM connection check PASSED: private config readable, webhook API available. Website form stays disabled." . PHP_EOL
+    : "BKM CRM preflight PASSED: API available; private config enabled." . PHP_EOL);
