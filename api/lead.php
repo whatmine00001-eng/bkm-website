@@ -29,6 +29,9 @@ if (!$https) {
 
 $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
 $host = preg_replace('/:\d+$/', '', $host);
+if (!in_array($host, ['24bkm.com', 'www.24bkm.com'], true)) {
+    reply(403, 'host_rejected');
+}
 $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
 $referer = (string) ($_SERVER['HTTP_REFERER'] ?? '');
 $source = $origin !== '' ? $origin : $referer;
@@ -62,6 +65,13 @@ $config = require $configFile;
 if (!is_array($config) || ($config['enabled'] ?? false) !== true ||
     ($config['privacy_approved'] ?? false) !== true) {
     reply(503, 'not_enabled');
+}
+if (!is_file(dirname(__DIR__) . '/privacy.html')) {
+    reply(503, 'policy_not_available');
+}
+$salt = (string) ($config['rate_salt'] ?? '');
+if (strlen($salt) < 24 || stripos($salt, 'REPLACE') !== false) {
+    reply(503, 'anti_spam_not_configured');
 }
 
 function input(array $data, string $key, int $max = 250): string {
@@ -107,7 +117,7 @@ if (!is_dir($rateDirectory) && !@mkdir($rateDirectory, 0700, true) && !is_dir($r
     reply(503, 'server_unavailable');
 }
 $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-$rateId = hash('sha256', $ip . (string) ($config['rate_salt'] ?? 'bkm'));
+$rateId = hash('sha256', $ip . $salt);
 $file = @fopen($rateDirectory . '/' . $rateId . '.json', 'c+');
 if (!$file || !flock($file, LOCK_EX)) {
     reply(503, 'server_unavailable');
@@ -171,6 +181,22 @@ $fields = [
 ] + $utms;
 if ($email !== '') {
     $fields['EMAIL'] = [['VALUE' => $email, 'VALUE_TYPE' => 'WORK']];
+}
+// Optional routing by the company's Bitrix24 administrator.
+// Values come only from server-side config; site visitors cannot change them.
+if (isset($config['assigned_by_id'])) {
+    $assigned = filter_var($config['assigned_by_id'], FILTER_VALIDATE_INT);
+    if ($assigned === false || (int) $assigned <= 0) {
+        reply(503, 'crm_assignment_not_configured');
+    }
+    $fields['ASSIGNED_BY_ID'] = (int) $assigned;
+}
+if (isset($config['lead_status_id'])) {
+    $statusId = (string) $config['lead_status_id'];
+    if (!preg_match('/^[A-Za-z0-9_:-]{1,60}$/D', $statusId)) {
+        reply(503, 'crm_status_not_configured');
+    }
+    $fields['STATUS_ID'] = $statusId;
 }
 
 $payload = json_encode(['fields' => $fields, 'params' => ['REGISTER_SONET_EVENT' => 'Y']],
