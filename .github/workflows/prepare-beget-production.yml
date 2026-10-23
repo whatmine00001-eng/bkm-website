@@ -11,6 +11,14 @@ on:
         options:
           - prepare
           - publish
+      crm_mode:
+        description: "off = contact by email; on = Bitrix24 leads only with approved policy and server preflight"
+        required: true
+        type: choice
+        default: off
+        options:
+          - off
+          - on
       confirmation:
         description: "For publish, type exactly RELEASE_24BKM; leave empty for prepare"
         required: false
@@ -34,15 +42,25 @@ jobs:
           ref: design/bkm-modern-v1
           persist-credentials: false
 
-      - name: Generate production-safe build (without CRM)
+      - name: Test lead release gates and build selected mode
+        env:
+          BKM_CRM_RELEASE: ${{ inputs.crm_mode }}
         run: |
           set -eu
+          python3 scripts/test_crm_release.py
           python3 scripts/build-production.py
           test -s _production_release/index.html
           test -s _production_release/sitemap.xml
           test -s _production_release/robots.txt
-          test ! -e _production_release/privacy.html
-          test ! -e _production_release/api/lead.php
+          if [ "$BKM_CRM_RELEASE" = "on" ]; then
+            test -s _production_release/privacy.html
+            test -s _production_release/api/lead.php
+            grep -q 'formsEnabled: true' _production_release/assets/site-config.js
+          else
+            test ! -e _production_release/privacy.html
+            test ! -e _production_release/api/lead.php
+            grep -q 'formsEnabled: false' _production_release/assets/site-config.js
+          fi
           if grep -R -i -l 'noindex,nofollow' _production_release/*.html; then
             echo "::error::noindex remains in production pages"
             exit 1
@@ -77,6 +95,19 @@ jobs:
           ssh $SSH_OPTS "$USER@$HOST" "test -s '$CANDIDATE/index.html' && test -s '$CANDIDATE/sitemap.xml' && test -s '$CANDIDATE/assets/bkm-header.svg'"
           echo "Production candidate staged privately at $CANDIDATE; DNS and web root unchanged."
 
+      - name: Verify Bitrix24 webhook and approved private settings before CRM release
+        if: inputs.crm_mode == 'on'
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          SHORT_SHA=$(git rev-parse --short=12 HEAD)
+          CANDIDATE="/home/h/help24pw/.bkm_releases/24bkm-${SHORT_SHA}"
+          scp $SSH_OPTS scripts/check-crm-config.php "$USER@$HOST:$CANDIDATE/.bkm_crm_preflight.php"
+          ssh $SSH_OPTS "$USER@$HOST" "php '$CANDIDATE/.bkm_crm_preflight.php' && rm -f '$CANDIDATE/.bkm_crm_preflight.php'"
+
       - name: Require explicit publish confirmation
         if: inputs.mode == 'publish'
         env:
@@ -92,6 +123,7 @@ jobs:
         env:
           HOST: ${{ secrets.BEGET_HOST }}
           USER: ${{ secrets.BEGET_USER }}
+          CRM_MODE: ${{ inputs.crm_mode }}
         run: |
           set -eu
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
@@ -99,6 +131,9 @@ jobs:
           BACKUP="/home/h/help24pw/.bkm_backups/24bkm-$(date -u +%Y%m%dT%H%M%SZ)"
           ssh $SSH_OPTS "$USER@$HOST" "test -d '$ROOT' && mkdir -p '$BACKUP' && tar -czf '$BACKUP/public_html-before-release.tar.gz' -C '$ROOT' . && if [ -f '$ROOT/index.php' ]; then mv '$ROOT/index.php' '$BACKUP/old-index.php'; fi"
           rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" _production_release/ "$USER@$HOST:$ROOT/"
+          if [ "$CRM_MODE" = "off" ]; then
+            ssh $SSH_OPTS "$USER@$HOST" "rm -f '$ROOT/api/lead.php'"
+          fi
           ssh $SSH_OPTS "$USER@$HOST" "test -s '$ROOT/index.html' && test -s '$ROOT/robots.txt' && test -s '$ROOT/sitemap.xml'"
           echo "Files placed in primary Beget site root. BACKUP: $BACKUP"
           echo "DO NOT change GoDaddy DNS until pre-cutover HTTP test against Beget passes."
