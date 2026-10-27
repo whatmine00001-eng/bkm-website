@@ -1,0 +1,20 @@
+# Local build outputs: never commit generated releases
+/_production_release/
+/_preview_release/
+
+# Server-only Bitrix24 / Beget credentials
+/.bkm_private/
+/config.php
+/.env
+/.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python and local caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+Thumbs.db
