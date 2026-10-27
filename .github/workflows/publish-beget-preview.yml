@@ -9,7 +9,7 @@ on:
       - 'assets/**'
       - 'api/**'
       - 'scripts/**'
-      - '.github/workflows/publish-beget-preview.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
