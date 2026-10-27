@@ -1,4 +1,9 @@
 27 October 2026: user corrected private webhook and requested testing and continued integration.
 Verify only lead field schema, CRM mode, configured initial stage and WEB source.
 Read-only methods only. Do not list contacts or leads, create records, enable collection, deploy the website, change private configuration or DNS.
-Reviewed diagnostic revision: 9327b5097ee8bb13f2f84dc7c8dfd62e51fa0fee.
+Initial diagnostic revision: 9327b5097ee8bb13f2f84dc7c8dfd62e51fa0fee.
+
+User now confirmed adding assigned_by_id=7 for Kirill.
+Verify exact private-config assignee matches 7 and both collection flags remain false.
+Reviewed diagnostic revision: 6bddc209060dd022921e45dc7a00311e6e37cdc6.
+No actual lead creation or notification test is authorized by this diagnostic.
