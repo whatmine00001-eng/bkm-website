@@ -7,6 +7,8 @@ declare(strict_types=1);
  * Prints no webhook secrets and creates no test CRM leads.
  * --connection-only: verify private config and CRM API without requiring
  * the website's approval switches to be enabled.
+ * --format-only: verify configuration locally with NO CRM/network request;
+ *                require enabled and privacy_approved to remain false.
  */
 function failCheck(string $message): void {
     fwrite(STDERR, "BKM CRM preflight failed: " . $message . PHP_EOL);
@@ -24,10 +26,11 @@ if (!is_readable($file)) {
 }
 $config = require $file;
 $connectionOnly = in_array('--connection-only', $argv ?? [], true);
+$formatOnly = in_array('--format-only', $argv ?? [], true);
 if (!is_array($config)) {
     failCheck('private config is not a PHP array');
 }
-if (!$connectionOnly && (($config['enabled'] ?? false) !== true ||
+if (!$connectionOnly && !$formatOnly && (($config['enabled'] ?? false) !== true ||
     ($config['privacy_approved'] ?? false) !== true)) {
     failCheck('CRM or privacy approval is disabled');
 }
@@ -71,6 +74,16 @@ if (isset($config['assigned_by_id']) &&
 if (isset($config['lead_status_id']) &&
     !preg_match('/^[A-Za-z0-9_:-]{1,60}$/D', (string) $config['lead_status_id'])) {
     failCheck('invalid lead_status_id');
+}
+
+// For a safe offline inspection, NEVER connect to the CRM.
+if ($formatOnly) {
+    if (($config['enabled'] ?? false) !== false ||
+        ($config['privacy_approved'] ?? false) !== false) {
+        failCheck('keep enabled and privacy_approved false until the approved public rollout');
+    }
+    fwrite(STDOUT, "BKM CRM offline config check PASSED: Beget config, webhook URL structure and spam salt valid; no CRM request was sent." . PHP_EOL);
+    exit(0);
 }
 
 // Verify connection and CRM read permissions without transferring contact data.
