@@ -1,0 +1,55 @@
+name: BKM Bitrix24 Local Config Format Check (No CRM Traffic)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".releases/bkm-crm-offline-check-20261027.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  format-check-only:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout audited offline checker (no customer data)
+        uses: actions/checkout@v4
+        with:
+          ref: design/bkm-modern-v1
+          persist-credentials: false
+
+      - name: Validate syntax of offline check script
+        run: |
+          set -eu
+          php -l scripts/check-crm-config.php
+          grep -q -- "--format-only" scripts/check-crm-config.php
+
+      - name: Set up existing secured Beget SSH credentials
+        env:
+          SSH_PRIVATE: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_PRIVATE" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Verify private Beget format OFFLINE without requesting Bitrix24 API
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          CHECK_DIR="/home/h/help24pw/.bkm_releases/crm-offline-20261027"
+          ssh $SSH_OPTS "$USER@$HOST" "mkdir -p '$CHECK_DIR' && chmod 700 '$CHECK_DIR'"
+          scp $SSH_OPTS scripts/check-crm-config.php "$USER@$HOST:$CHECK_DIR/check.php"
+          ssh $SSH_OPTS "$USER@$HOST" "set -eu; trap 'rm -f \"$CHECK_DIR/check.php\"' EXIT; chmod 600 '$CHECK_DIR/check.php'; php8.2 -l '$CHECK_DIR/check.php'; php8.2 '$CHECK_DIR/check.php' --format-only"
+          echo "Offline verification only: never connected to Bitrix24, never modified 24bkm.com."
