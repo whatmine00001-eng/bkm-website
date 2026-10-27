@@ -1,29 +1,18 @@
-name: Deploy BKM to Beget
+name: Legacy Beget Deploy - Disabled (Use Safe Preview)
+
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
-  deploy:
+  retired:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure SSH
-        env:
-          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+      - name: No deployment - legacy raw rsync workflow retired
         run: |
-          set -eu
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-      - name: Upload approved website
-        env:
-          HOST: ${{ secrets.BEGET_HOST }}
-          USER: ${{ secrets.BEGET_USER }}
-        run: |
-          set -eu
-          test -n "$HOST" && test -n "$USER"
-          rsync -az --exclude='.git/' --exclude='.github/' --exclude='wrangler.jsonc' --exclude='README.md' --exclude='*.md' --exclude='index.php' -e 'ssh -o StrictHostKeyChecking=yes -o BatchMode=yes' ./ "$USER@$HOST:/home/h/help24pw/help24pw.beget.tech/public_html/"
+          echo "This legacy workflow is intentionally disabled."
+          echo "It previously copied unreviewed site sources, including a draft privacy page and an inactive PHP endpoint, into a public test directory."
+          echo "Use 'BKM Preview - Validate Automatically, Publish Manually' on design/bkm-modern-v1 instead."
+          echo "No SSH credentials used; no files uploaded."
