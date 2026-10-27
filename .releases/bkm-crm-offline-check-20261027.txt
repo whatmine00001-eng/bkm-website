@@ -1,0 +1,3 @@
+27 October 2026: authorized one-time, read-only offline inspection of PRIVATE Beget PHP configuration.
+Scope: validate URL structure, secret length and disabled flags on Beget only.
+No HTTP requests to Bitrix24; no leads, no personal data; no 24bkm.com/DNS modifications.
