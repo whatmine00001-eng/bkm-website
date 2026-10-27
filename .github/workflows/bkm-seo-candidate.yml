@@ -1,0 +1,56 @@
+name: BKM SEO Candidate - Validate Only
+on:
+  push:
+    branches: [design/bkm-modern-v1]
+    paths:
+      - 'scripts/prepare-seo-candidate.py'
+      - 'seo/**'
+      - '.github/workflows/bkm-seo-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/design/bkm-modern-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BKM_CRM_RELEASE: off
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Existing safe build and new SEO candidate
+        run: |
+          set -eu
+          python3 -m compileall -q scripts
+          python3 scripts/test_crm_release.py
+          python3 scripts/build-production.py
+          python3 scripts/test_contacts.py
+          python3 scripts/prepare-seo-candidate.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re, subprocess, sys
+          def hashes(root):
+              return {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()}
+          original=hashes(Path('_production_release'))
+          first=hashes(Path('_seo_candidate'))
+          subprocess.run([sys.executable,'scripts/prepare-seo-candidate.py'],check=True)
+          assert first==hashes(Path('_seo_candidate')), 'SEO transformation must be deterministic'
+          assert original==hashes(Path('_production_release')), 'Safe build was changed'
+          home=Path('_seo_candidate/index.html').read_text(encoding='utf-8')
+          source=Path('_production_release/index.html').read_text(encoding='utf-8')
+          assert home.split('</head>',1)[1]==source.split('</head>',1)[1], 'Visible design/copy changed'
+          m=re.search(r'<script type="application/ld\+json" id="bkm-brand-schema">(.*?)</script>',home,re.S)
+          assert m, 'Brand schema missing'
+          data=json.loads(m.group(1)); assert len(data['@graph'])==2
+          assert data['@graph'][0]['telephone']=='+78007077902'
+          assert data['@graph'][0]['email']=='info@24bkm.com'
+          assert 'BKM' in data['@graph'][1]['alternateName']
+          assert not Path('_seo_candidate/api').exists()
+          assert 'formsEnabled: false' in Path('_seo_candidate/assets/site-config.js').read_text()
+          assert not re.search(r'<form\b',home,re.I)
+          assert 'yandex-verification' not in home and 'google-site-verification' not in home, 'Unexpected ownership token; review owner request'
+          print('SEO_REVIEW_PASS: brand metadata, contacts, deterministic build, visible design unchanged, no CRM. NOT DEPLOYED.')
+          PY
