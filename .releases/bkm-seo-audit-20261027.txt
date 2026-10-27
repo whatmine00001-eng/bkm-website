@@ -1,0 +1,3 @@
+User requests SEO for BKM/БКМ, geographic availability and security review.
+Run only public HTTP GET checks of homepage, www, robots, sitemap and one intentional nonexistent page.
+No private paths, credentials, CRM requests, DNS changes, website deployment, or collection activation.
