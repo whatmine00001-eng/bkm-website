@@ -52,6 +52,7 @@ jobs:
           for script in assets/*.js; do node --check "$script"; done
           php -l api/lead.php
           php -l scripts/check-crm-config.php
+          python3 scripts/test_lead_safety.py
           python3 - <<'PY'
           from pathlib import Path
           import re
