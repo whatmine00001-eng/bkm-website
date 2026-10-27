@@ -1,15 +1,16 @@
-name: Publish BKM preview to Beget
+name: BKM Preview - Validate Automatically, Publish Manually
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - design/bkm-modern-v1
     paths:
       - '*.html'
       - 'assets/**'
+      - 'api/**'
       - 'scripts/**'
       - '.github/workflows/publish-beget-preview.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,69 +20,75 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish-preview:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design/bkm-modern-v1'
+  preview-checks:
+    if: github.ref == 'refs/heads/design/bkm-modern-v1'
     runs-on: ubuntu-latest
+    env:
+      BKM_CRM_RELEASE: off
+
     steps:
-      - name: Checkout reviewed website source
+      - name: Checkout exact design revision being checked
         uses: actions/checkout@v4
         with:
-          ref: design/bkm-modern-v1
+          ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Check website files
+      - name: Validate all Python scripts, PHP, JavaScript and local links
         run: |
           set -eu
-          for file in index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html; do
+          python3 -m compileall -q scripts
+          python3 scripts/test_crm_release.py
+          for file in index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html; do
             test -s "$file"
             grep -qi '<html' "$file"
           done
-          for file in news.html news-*.html; do
+          for file in news-*.html; do
             test -s "$file"
             grep -qi '<html' "$file"
           done
-          test -s assets/bkm-header.svg
-          test -s assets/bkm-symbol.svg
-          test -s assets/news.css
-          test -s assets/home-redesign.css
-          test -s assets/interior-redesign.css
-          test -s assets/home.js
-          test -s privacy.html
-          test -s assets/site-config.js
-          test -s assets/analytics.js
-          test -s assets/lead-form.js
-          test -s api/lead.php
-          node --check assets/home.js
-          node --check assets/site-config.js
-          node --check assets/analytics.js
-          node --check assets/lead-form.js
-          if command -v php >/dev/null 2>&1; then
-            php -l api/lead.php
-            php -l scripts/check-crm-config.php
-          else
-            echo "PHP CLI is not installed on this runner; check PHP syntax manually before activating CRM."
-          fi
+          for asset in assets/bkm-header.svg assets/bkm-symbol.svg assets/news.css assets/home-redesign.css assets/home-brand-final.css assets/interior-redesign.css assets/home.js assets/site-config.js assets/analytics.js assets/lead-form.js; do
+            test -s "$asset"
+          done
+          for script in assets/*.js; do node --check "$script"; done
+          php -l api/lead.php
+          php -l scripts/check-crm-config.php
           python3 - <<'PY'
           from pathlib import Path
           import re
-          bad = []
-          for html in Path(".").glob("*.html"):
-              text = html.read_text(encoding="utf-8")
-              for target in re.findall(r'(?:href|src)="([^"]+)"', text):
-                  path = target.split("#")[0].split("?")[0]
-                  if not path or ":" in path or path.startswith(("#", "//", "/")):
+          broken = []
+          for page in Path(".").glob("*.html"):
+              source = page.read_text(encoding="utf-8")
+              if not re.search(r'content=["\']noindex\s*,\s*nofollow["\']', source, re.I):
+                  broken.append(f"{page}: preview must remain noindex,nofollow")
+              for value in re.findall(r'(?:href|src)=["\']([^"\']+)["\']', source):
+                  target = value.split("#")[0].split("?")[0]
+                  if not target or ":" in target or target.startswith(("#", "//", "/")):
                       continue
-                  if not (html.parent / path).exists():
-                      bad.append(f"{html}: missing {path}")
-          if bad:
-              raise SystemExit("\n".join(bad))
-          print("BKM local-link validation passed")
+                  if not (page.parent / target).is_file():
+                      broken.append(f"{page}: missing {target}")
+          if broken:
+              raise SystemExit("\n".join(broken))
+          print("Preview HTML, noindex and local links validated.")
           PY
-          python3 scripts/test_crm_release.py
+
+      - name: Build production candidate LOCALLY in SAFE mode only
+        run: |
+          set -eu
           python3 scripts/build-production.py
           python3 scripts/test_contacts.py
+          test -s _production_release/index.html
+          test -s _production_release/sitemap.xml
+          test -s _production_release/robots.txt
+          test ! -e _production_release/api/lead.php
+          test ! -e _production_release/privacy.html
+          grep -q 'formsEnabled: false' _production_release/assets/site-config.js
+          ! grep -i -l 'noindex,nofollow' _production_release/*.html
+          ! grep -q 'id="bkm-lead-form"' _production_release/index.html
+          test -s _production_release/assets/bkm-header.svg
+          echo "SAFE build checks passed. No website files have been uploaded."
 
-      - name: Configure SSH for Beget
+      - name: Configure Beget SSH (ONLY on explicit manual preview)
+        if: github.event_name == 'workflow_dispatch'
         env:
           DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
@@ -97,15 +104,18 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
           ssh-keygen -F "$BEGET_HOST" -f ~/.ssh/known_hosts >/dev/null
 
-      - name: Publish isolated preview (do not touch live site)
+      - name: Publish ISOLATED noindex preview, without PHP CRM or draft policy
+        if: github.event_name == 'workflow_dispatch'
         env:
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
           BEGET_USER: ${{ secrets.BEGET_USER }}
         run: |
           set -eu
           TARGET="/home/h/help24pw/test.24bkm.com/public_html/bkm-preview"
+          test "$TARGET" = "/home/h/help24pw/test.24bkm.com/public_html/bkm-preview"
           SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
-          ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET'"
-          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html news-*.html privacy.html api assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
-          echo "The preview uses HTTP. Online CRM submission is disabled until HTTPS and privacy requirements are met."
-          echo "Published preview: http://test.24bkm.com/bkm-preview/index.html"
+          ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET' && rm -f '$TARGET/privacy.html' '$TARGET/api/lead.php'"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html news-*.html assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
+          ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "test -s '$TARGET/index.html' && grep -qi 'noindex,nofollow' '$TARGET/index.html' && test ! -e '$TARGET/privacy.html' && test ! -e '$TARGET/api/lead.php'"
+          echo "Only the isolated Beget preview was updated. Live domain, DNS and Bitrix24 untouched."
+          echo "Preview: http://test.24bkm.com/bkm-preview/index.html"
