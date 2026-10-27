@@ -1,0 +1,142 @@
+name: BKM Repair Legacy Services URL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.releases/bkm-services-route-20261027.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+
+jobs:
+  services-route-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout reviewed narrow route repair
+        uses: actions/checkout@v4
+        with:
+          ref: 9992caf347bbfb60cb080b86d6e2b3ca24a6e3ed
+          persist-credentials: false
+
+      - name: Syntax and exact route scope tests
+        run: |
+          set -eu
+          php -l ops/fix-services-redirect.php
+          php ops/fix-services-redirect.php --self-test
+
+      - name: Configure existing secured Beget SSH
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          REMOTE_HOST: ${{ secrets.BEGET_HOST }}
+          REMOTE_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$REMOTE_HOST" && test -n "$REMOTE_USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$REMOTE_HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Diagnose, back up, patch ONLY services route, verify or restore
+        env:
+          REMOTE_HOST: ${{ secrets.BEGET_HOST }}
+          REMOTE_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures, hashlib, json, os, shlex, subprocess
+          import urllib.request, urllib.error
+          from urllib.parse import urlsplit
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs):
+                  return None
+
+          def read(url):
+              request = urllib.request.Request(url, headers={
+                  'User-Agent': 'BKM-owner-services-repair/1.0',
+                  'Cache-Control': 'no-cache'})
+              try:
+                  response = urllib.request.build_opener(NoRedirect()).open(request, timeout=20)
+              except urllib.error.HTTPError as err:
+                  response = err
+              with response:
+                  body = response.read(2000000)
+                  return {'url': url, 'status': response.code,
+                          'location': response.headers.get('Location'),
+                          'sha256': hashlib.sha256(body).hexdigest(), 'body': body}
+
+          def info(result):
+              print(json.dumps({k:v for k,v in result.items() if k != 'body'}, ensure_ascii=False), flush=True)
+
+          base = 'https://24bkm.com'
+          stable = [base+p for p in ['/', '/services.html', '/news.html', '/robots.txt', '/sitemap.xml', '/assets/site-config.js']]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+              before = dict(zip(stable, pool.map(read, stable)))
+          for url, result in before.items():
+              if result['status'] != 200:
+                  raise SystemExit('Before repair: healthy target required, got '+str(result['status'])+' at '+url)
+          services = before[base+'/services.html']['body'].decode('utf-8', errors='replace')
+          if 'info@24bkm.com' not in services or '<html' not in services.lower():
+              raise SystemExit('Destination is not the expected BKM services page')
+          prefixes = [scheme+'://'+host for scheme in ['http','https'] for host in ['24bkm.com','www.24bkm.com']]
+          for prefix in prefixes:
+              info(read(prefix+'/services'))
+          print('BEFORE: destination services.html is healthy; all page contents captured for comparison.', flush=True)
+
+          run_id = os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
+          remote = os.environ['REMOTE_USER']+'@'+os.environ['REMOTE_HOST']
+          options = ['-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20']
+          directory = '/home/h/help24pw/.bkm_releases/services-route-'+run_id
+          script = directory+'/fix.php'
+          def ssh(command):
+              subprocess.run(['ssh',*options,remote,command], check=True, timeout=45)
+          def invoke(mode):
+              ssh('php8.2 -d display_errors=0 -d log_errors=0 '+shlex.quote(script)+' '+mode+' '+shlex.quote(run_id))
+
+          attempted = False
+          try:
+              ssh('mkdir -p '+shlex.quote(directory)+' && chmod 700 '+shlex.quote(directory))
+              subprocess.run(['scp',*options,'ops/fix-services-redirect.php',remote+':'+script],check=True,timeout=30)
+              ssh('chmod 600 '+shlex.quote(script)+' && php8.2 -l '+shlex.quote(script))
+              attempted = True
+              invoke('apply')
+              urls = [prefix+path for prefix in prefixes for path in ['/services','/services/','/services?utm_source=bkm_route_check&utm_campaign=repair20261027']]
+              with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+                  checked = list(pool.map(read, urls))
+              for result in checked:
+                  info(result)
+                  query = urlsplit(result['url']).query
+                  expected = base+'/services.html'+('?' + query if query else '')
+                  if result['status'] != 301 or result['location'] != expected:
+                      raise RuntimeError('Redirect check failed at '+result['url'])
+              with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+                  after = dict(zip(stable, pool.map(read, stable)))
+              for url,result in after.items():
+                  if result['status'] != 200 or result['sha256'] != before[url]['sha256']:
+                      raise RuntimeError('Existing public file changed or stopped working: '+url)
+              missing = read(base+'/bkm-route-missing-20261027.html')
+              if missing['status'] != 404:
+                  raise RuntimeError('Unknown pages must remain genuine 404 responses')
+              print('SERVICES_REPAIR_PASS: 12 legacy variants return 301 to HTTPS services.html; UTM preserved.', flush=True)
+              print('UNCHANGED_PASS: homepage, services page, news, robots, sitemap and public config are byte-identical; genuine 404 preserved.', flush=True)
+              print('SCOPE: only live .htaccess route block changed. No DNS, CRM, private credentials or collection flags changed.', flush=True)
+              print('PRIVATE_BACKUP: services-route-'+run_id, flush=True)
+          except BaseException:
+              if attempted:
+                  print('Verification failed: restoring original .htaccess.', flush=True)
+                  invoke('rollback')
+              raise
+          finally:
+              try:
+                  ssh('rm -f '+shlex.quote(script)+'; rmdir '+shlex.quote(directory))
+              except Exception:
+                  print('Private maintenance-file cleanup needs review; no public PHP was created.', flush=True)
+          PY
