@@ -22,7 +22,7 @@ jobs:
       - name: Checkout exact reviewed diagnostic revision
         uses: actions/checkout@v4
         with:
-          ref: 9327b5097ee8bb13f2f84dc7c8dfd62e51fa0fee
+          ref: 6bddc209060dd022921e45dc7a00311e6e37cdc6
           persist-credentials: false
 
       - name: Syntax and synthetic metadata tests (offline)
@@ -30,6 +30,8 @@ jobs:
           set -eu
           php -l scripts/check-crm-config.php
           php -l scripts/check-lead-readiness.php
+          php -l scripts/check-lead-assignee.php
+          php scripts/check-lead-assignee.php --self-test
           php scripts/check-lead-readiness.php --self-test
 
       - name: Configure existing secured SSH credentials
@@ -47,7 +49,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
           ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
 
-      - name: Read schema, CRM mode, source and stage (no lead creation)
+      - name: Check assignee 7 and read lead metadata (no lead creation)
         env:
           HOST: ${{ secrets.BEGET_HOST }}
           USER: ${{ secrets.BEGET_USER }}
@@ -56,6 +58,6 @@ jobs:
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
           DIR="/home/h/help24pw/.bkm_releases/lead-readiness-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh $SSH_OPTS "$USER@$HOST" "mkdir -p '$DIR' && chmod 700 '$DIR'"
-          scp $SSH_OPTS scripts/check-crm-config.php scripts/check-lead-readiness.php "$USER@$HOST:$DIR/"
-          ssh $SSH_OPTS "$USER@$HOST" "set -eu; trap 'rm -f \"$DIR/check-crm-config.php\" \"$DIR/check-lead-readiness.php\"; rmdir \"$DIR\"' EXIT; chmod 600 '$DIR/check-crm-config.php' '$DIR/check-lead-readiness.php'; php8.2 -d display_errors=0 -d log_errors=0 '$DIR/check-lead-readiness.php'"
-          echo "Metadata diagnostic passed. No leads created, no customer data read, no public website changes."
+          scp $SSH_OPTS scripts/check-crm-config.php scripts/check-lead-readiness.php scripts/check-lead-assignee.php "$USER@$HOST:$DIR/"
+          ssh $SSH_OPTS "$USER@$HOST" "set -eu; trap 'rm -f \"$DIR/check-crm-config.php\" \"$DIR/check-lead-readiness.php\" \"$DIR/check-lead-assignee.php\"; rmdir \"$DIR\"' EXIT; chmod 600 '$DIR/check-crm-config.php' '$DIR/check-lead-readiness.php' '$DIR/check-lead-assignee.php'; php8.2 -d display_errors=0 -d log_errors=0 '$DIR/check-lead-assignee.php' 7; php8.2 -d display_errors=0 -d log_errors=0 '$DIR/check-lead-readiness.php'"
+          echo "Assignee configuration and metadata checks passed. No leads created, no customer data read, no public website changes."
