@@ -87,6 +87,24 @@ jobs:
           test -s _production_release/assets/bkm-header.svg
           echo "SAFE build checks passed. No website files have been uploaded."
 
+      - name: Build inert noindex preview without collecting personal data
+        run: |
+          set -eu
+          python3 scripts/build-preview.py
+          test -s _preview_release/index.html
+          test -s _preview_release/robots.txt
+          test -s _preview_release/assets/bkm-header.svg
+          test ! -e _preview_release/api/lead.php
+          test ! -e _preview_release/privacy.html
+          test ! -e _preview_release/assets/lead-form.js
+          ! grep -q 'id="bkm-lead-form"' _preview_release/index.html
+          ! grep -qi '<form' _preview_release/index.html
+          grep -q 'id="bkm-preview-contact"' _preview_release/index.html
+          grep -q 'formsEnabled: false' _preview_release/assets/site-config.js
+          grep -iq 'noindex,nofollow' _preview_release/index.html
+          grep -q 'Disallow: /' _preview_release/robots.txt
+          echo "Preview is non-collecting; upload is restricted to explicit manual workflow."
+
       - name: Configure Beget SSH (ONLY on explicit manual preview)
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -115,7 +133,7 @@ jobs:
           test "$TARGET" = "/home/h/help24pw/test.24bkm.com/public_html/bkm-preview"
           SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
           ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "mkdir -p '$TARGET' && rm -f '$TARGET/privacy.html' '$TARGET/api/lead.php'"
-          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html news-*.html assets "$BEGET_USER@$BEGET_HOST:$TARGET/"
+          rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" _preview_release/ "$BEGET_USER@$BEGET_HOST:$TARGET/"
           ssh $SSH_OPTS "$BEGET_USER@$BEGET_HOST" "test -s '$TARGET/index.html' && grep -qi 'noindex,nofollow' '$TARGET/index.html' && test ! -e '$TARGET/privacy.html' && test ! -e '$TARGET/api/lead.php'"
           echo "Only the isolated Beget preview was updated. Live domain, DNS and Bitrix24 untouched."
           echo "Preview: http://test.24bkm.com/bkm-preview/index.html"
