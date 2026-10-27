@@ -1,0 +1,61 @@
+name: BKM Lead Readiness - Read Only
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.releases/bkm-lead-readiness-20261027.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-crm-readiness
+  cancel-in-progress: false
+
+jobs:
+  inspect-lead-metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact reviewed diagnostic revision
+        uses: actions/checkout@v4
+        with:
+          ref: 9327b5097ee8bb13f2f84dc7c8dfd62e51fa0fee
+          persist-credentials: false
+
+      - name: Syntax and synthetic metadata tests (offline)
+        run: |
+          set -eu
+          php -l scripts/check-crm-config.php
+          php -l scripts/check-lead-readiness.php
+          php scripts/check-lead-readiness.php --self-test
+
+      - name: Configure existing secured SSH credentials
+        env:
+          SSH_PRIVATE: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_PRIVATE" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Read schema, CRM mode, source and stage (no lead creation)
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          DIR="/home/h/help24pw/.bkm_releases/lead-readiness-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh $SSH_OPTS "$USER@$HOST" "mkdir -p '$DIR' && chmod 700 '$DIR'"
+          scp $SSH_OPTS scripts/check-crm-config.php scripts/check-lead-readiness.php "$USER@$HOST:$DIR/"
+          ssh $SSH_OPTS "$USER@$HOST" "set -eu; trap 'rm -f \"$DIR/check-crm-config.php\" \"$DIR/check-lead-readiness.php\"; rmdir \"$DIR\"' EXIT; chmod 600 '$DIR/check-crm-config.php' '$DIR/check-lead-readiness.php'; php8.2 -d display_errors=0 -d log_errors=0 '$DIR/check-lead-readiness.php'"
+          echo "Metadata diagnostic passed. No leads created, no customer data read, no public website changes."
