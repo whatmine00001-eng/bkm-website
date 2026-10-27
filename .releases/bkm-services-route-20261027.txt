@@ -1,0 +1,5 @@
+27 October 2026: owner provided screenshot of indexed www.24bkm.com/services returning 404 and requested immediate repair.
+Authorized scope: exact /services and /services/ permanent redirect to https://24bkm.com/services.html, including query/UTM preservation.
+Preflight: destination and current public pages must be healthy.
+Only live .htaccess is amended; retain prior contents and private rollback backup. Verify all HTTP/HTTPS and www/non-www variants; restore on failure.
+No DNS, CRM, lead collection, source page contents, global HTTPS rules, search ownership or broad deployment changes.
