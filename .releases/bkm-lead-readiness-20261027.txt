@@ -1,0 +1,4 @@
+27 October 2026: user corrected private webhook and requested testing and continued integration.
+Verify only lead field schema, CRM mode, configured initial stage and WEB source.
+Read-only methods only. Do not list contacts or leads, create records, enable collection, deploy the website, change private configuration or DNS.
+Reviewed diagnostic revision: 9327b5097ee8bb13f2f84dc7c8dfd62e51fa0fee.
