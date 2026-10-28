@@ -43,6 +43,16 @@ jobs:
           python3 scripts/build-production.py
           python3 scripts/finalize-brand-pages.py . --self-test
           python3 scripts/finalize-brand-pages.py _production_release
+          python3 scripts/site_header.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import runpy
+          unify = runpy.run_path('scripts/site_header.py')['unify_header']
+          for page in Path('_production_release').glob('*.html'):
+              if page.name != 'privacy.html':
+                  page.write_text(unify(page.read_text(encoding='utf-8'), page.name), encoding='utf-8')
+          print('Shared navigation generated; CRM form content unchanged.')
+          PY
           python3 scripts/test_contacts.py
           test -s _production_release/index.html
           test -s _production_release/sitemap.xml
