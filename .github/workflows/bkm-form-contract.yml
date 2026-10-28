@@ -1,0 +1,35 @@
+name: BKM Form Browser Contract - Isolated Tests Only
+on:
+  push:
+    branches: [design/bkm-modern-v1]
+    paths:
+      - '.github/workflows/bkm-form-contract.yml'
+      - 'scripts/test_form_browser.py'
+      - 'assets/lead-form.js'
+      - 'api/lead.php'
+      - 'index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  form-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate existing PHP safety and release approval gates
+        run: |
+          set -eu
+          node --check assets/lead-form.js
+          php -l api/lead.php
+          python3 scripts/test_lead_safety.py
+          python3 scripts/test_crm_release.py
+      - name: Install isolated browser
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+      - name: Test exact form and JavaScript against synthetic responses
+        run: python3 scripts/test_form_browser.py
