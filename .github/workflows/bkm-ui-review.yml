@@ -1,0 +1,47 @@
+name: BKM UI Browser Review - No Deployment
+on:
+  workflow_dispatch:
+  push:
+    branches: [design/bkm-modern-v1]
+    paths:
+      - 'assets/bkm-ui-polish.css'
+      - 'assets/home.js'
+      - 'assets/home-brand-final.css'
+      - 'assets/interior-redesign.css'
+      - 'scripts/test_ui_polish.py'
+      - '.github/workflows/bkm-ui-review.yml'
+permissions:
+  contents: read
+jobs:
+  visual-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check static scripts and safe build
+        env:
+          BKM_CRM_RELEASE: off
+        run: |
+          set -eu
+          node --check assets/home.js
+          python3 -m py_compile scripts/test_ui_polish.py
+          python3 scripts/test_crm_release.py
+          python3 scripts/build-production.py
+          python3 scripts/test_contacts.py
+      - name: Install browser QA tools
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+      - name: Render all public sitemap pages with candidate CSS (GET only)
+        run: python3 scripts/test_ui_polish.py
+      - name: Save screenshots and audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bkm-ui-review-${{ github.run_id }}
+          path: ui-review/
+          retention-days: 7
+          if-no-files-found: warn
