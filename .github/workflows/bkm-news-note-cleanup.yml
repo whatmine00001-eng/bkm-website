@@ -1,0 +1,102 @@
+name: BKM News - Remove Listing Editorial Note
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bkm-news-note-cleanup.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+jobs:
+  remove-note:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 85dd5970f468d5a74d20265804bc7966d351bdd2
+          persist-credentials: false
+      - name: Test strictly scoped paragraph removal
+        run: |
+          set -eu
+          python3 -m py_compile ops/remove-news-editor-note.py
+          python3 ops/remove-news-editor-note.py self-test
+      - name: Configure existing secured Beget access
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+      - name: Back up news.html, remove one paragraph and verify HTTPS or restore
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, importlib.util, os, shlex, subprocess, urllib.request
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('cleanup','ops/remove-news-editor-note.py')
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          base='https://24bkm.com'
+          run=os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
+          def read(path):
+              url=base+path+'?bkm_news_cleanup='+run
+              req=urllib.request.Request(url,headers={'Cache-Control':'no-cache','User-Agent':'BKM-owner-requested-news-cleanup/1.0'})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  if r.status!=200 or not r.url.startswith(base+'/'):
+                      raise RuntimeError('Unexpected HTTPS response')
+                  return r.read(3000000)
+          before=read('/news.html')
+          after=mod.clean(before)
+          source=Path('news.html').read_bytes()
+          assert mod.clean(source)==source, 'Source paragraph must already be removed'
+          assert mod.NOTICE.encode() not in after
+          if before==after:
+              print('NEWS_NOTE_LIVE_PASS: requested paragraph already absent; nothing changed.')
+              raise SystemExit(0)
+          protected=['/index.html','/assets/site-config.js','/robots.txt','/sitemap.xml']
+          stable={p:hashlib.sha256(read(p)).hexdigest() for p in protected}
+          remote=os.environ['USER']+'@'+os.environ['HOST']
+          options=['-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20']
+          folder='/home/h/help24pw/.bkm_releases/news-note-'+run
+          script=folder+'/remove.py'
+          def ssh(command):
+              subprocess.run(['ssh',*options,remote,command],check=True,timeout=45)
+          attempted=False
+          try:
+              ssh('mkdir -p '+shlex.quote(folder)+' && chmod 700 '+shlex.quote(folder))
+              subprocess.run(['scp',*options,'ops/remove-news-editor-note.py',remote+':'+script],check=True,timeout=30)
+              ssh('chmod 600 '+shlex.quote(script))
+              attempted=True
+              ssh('python3 '+shlex.quote(script)+' apply --run '+run+' --before '+hashlib.sha256(before).hexdigest())
+              actual=read('/news.html')
+              assert actual==after, 'Published page is not the exact single-paragraph edit'
+              for path,checksum in stable.items():
+                  assert hashlib.sha256(read(path)).hexdigest()==checksum, 'Protected file changed: '+path
+              print('NEWS_NOTE_LIVE_PASS: HTTPS 200; circled paragraph absent; exact expected HTML verified.')
+              print('PRESERVED: all article text, dates, source links, search, filters, common header and footer.')
+              print('SCOPE: only news.html changed; no new articles published; no CRM, DNS, policies or form edits.')
+              print('BACKUP: news-note-'+run)
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f:
+                  f.write('## Completed\nRemoved only the general editorial-check paragraph below «Актуальные материалы» on the live news page. HTTPS response and exact resulting HTML verified. Article dates, sources, search and filters unchanged.\n')
+          except BaseException:
+              if attempted:
+                  ssh('python3 '+shlex.quote(script)+' rollback --run '+run)
+              raise
+          finally:
+              try:
+                  ssh('rm -f '+shlex.quote(script)+'; rmdir '+shlex.quote(folder))
+              except Exception:
+                  print('Review cleanup of private temporary script; no additional public files installed.')
+          PY
