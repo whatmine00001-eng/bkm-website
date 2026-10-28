@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 3f269badf90c2287dd7c34838a0c5bd13c10cb4c
+          ref: e71e74ad5cca974ebd19848923a4d9fae43211f4
           persist-credentials: false
       - name: Compile and test shared header without network
         run: |
