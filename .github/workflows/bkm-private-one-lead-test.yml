@@ -1,0 +1,60 @@
+name: BKM Private Single Lead Test - No Public Deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.releases/bkm-private-one-lead-20261028.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-private-one-lead-test
+  cancel-in-progress: false
+
+jobs:
+  one-synthetic-lead:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout pinned private diagnostic
+        uses: actions/checkout@v4
+        with:
+          ref: 4449d6f71d27b71d51d10cbcff2e95abd0269455
+          persist-credentials: false
+
+      - name: Lint and test synthetic payload without network
+        run: |
+          set -eu
+          php -l ops/verify-one-lead-cli.php
+          php ops/verify-one-lead-cli.php --self-test
+
+      - name: Configure existing SSH without exposing keys
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Create at most one private synthetic test record and read only that record
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20"
+          DIR="/home/h/help24pw/.bkm_releases/private-one-lead-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh $SSH_OPTS "$USER@$HOST" "mkdir -p '$DIR' && chmod 700 '$DIR'"
+          scp $SSH_OPTS ops/verify-one-lead-cli.php "$USER@$HOST:$DIR/test.php"
+          ssh $SSH_OPTS "$USER@$HOST" "set -eu; trap 'rm -f \"$DIR/test.php\"; rmdir \"$DIR\"' EXIT; chmod 600 '$DIR/test.php'; php8.2 -l '$DIR/test.php'; php8.2 -d display_errors=0 -d log_errors=0 '$DIR/test.php' CREATE_ONE_SYNTHETIC_LEAD_ASSIGNEE_7"
+          echo "Private server-to-CRM test completed. This is not a test of the public browser form."
