@@ -8,29 +8,22 @@ on:
         required: true
         type: choice
         default: prepare
-        options:
-          - prepare
-          - publish
+        options: [prepare, publish]
       crm_mode:
         description: "off = contact by email; on = Bitrix24 leads only with approved policy and server preflight"
         required: true
         type: choice
         default: off
-        options:
-          - off
-          - on
+        options: [off, on]
       confirmation:
         description: "For publish, type exactly RELEASE_24BKM; leave empty for prepare"
         required: false
         type: string
-
 permissions:
   contents: read
-
 concurrency:
   group: bkm-beget-live
   cancel-in-progress: false
-
 jobs:
   release:
     if: github.ref == 'refs/heads/main'
@@ -41,7 +34,6 @@ jobs:
         with:
           ref: design/bkm-modern-v1
           persist-credentials: false
-
       - name: Test lead release gates and build selected mode
         env:
           BKM_CRM_RELEASE: ${{ inputs.crm_mode }}
@@ -49,6 +41,9 @@ jobs:
           set -eu
           python3 scripts/test_crm_release.py
           python3 scripts/build-production.py
+          python3 scripts/finalize-brand-pages.py . --self-test
+          python3 scripts/finalize-brand-pages.py _production_release
+          python3 scripts/test_contacts.py
           test -s _production_release/index.html
           test -s _production_release/sitemap.xml
           test -s _production_release/robots.txt
@@ -65,7 +60,6 @@ jobs:
             echo "::error::noindex remains in production pages"
             exit 1
           fi
-
       - name: Configure SSH
         env:
           DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
@@ -79,8 +73,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts > /dev/null
-
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
       - name: Prepare private release folder on Beget
         env:
           HOST: ${{ secrets.BEGET_HOST }}
@@ -93,8 +86,7 @@ jobs:
           ssh $SSH_OPTS "$USER@$HOST" "mkdir -p '$CANDIDATE'"
           rsync -av --chmod=F644,D755 -e "ssh $SSH_OPTS" _production_release/ "$USER@$HOST:$CANDIDATE/"
           ssh $SSH_OPTS "$USER@$HOST" "test -s '$CANDIDATE/index.html' && test -s '$CANDIDATE/sitemap.xml' && test -s '$CANDIDATE/assets/bkm-header.svg'"
-          echo "Production candidate staged privately at $CANDIDATE; DNS and web root unchanged."
-
+          echo "Production candidate staged privately; DNS and web root unchanged."
       - name: Verify Bitrix24 webhook and approved private settings before CRM release
         if: inputs.crm_mode == 'on'
         env:
@@ -107,17 +99,15 @@ jobs:
           CANDIDATE="/home/h/help24pw/.bkm_releases/24bkm-${SHORT_SHA}"
           scp $SSH_OPTS scripts/check-crm-config.php "$USER@$HOST:$CANDIDATE/.bkm_crm_preflight.php"
           ssh $SSH_OPTS "$USER@$HOST" "php8.2 '$CANDIDATE/.bkm_crm_preflight.php' && rm -f '$CANDIDATE/.bkm_crm_preflight.php'"
-
       - name: Require explicit publish confirmation
         if: inputs.mode == 'publish'
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           test "$CONFIRMATION" = "RELEASE_24BKM" || {
-            echo "::error::To publish to 24bkm.com root, enter confirmation RELEASE_24BKM";
-            exit 1;
+            echo "::error::To publish to 24bkm.com root, enter confirmation RELEASE_24BKM"
+            exit 1
           }
-
       - name: Back up Beget web root and publish approved build
         if: inputs.mode == 'publish'
         env:
@@ -135,5 +125,4 @@ jobs:
             ssh $SSH_OPTS "$USER@$HOST" "rm -f '$ROOT/api/lead.php'"
           fi
           ssh $SSH_OPTS "$USER@$HOST" "test -s '$ROOT/index.html' && test -s '$ROOT/robots.txt' && test -s '$ROOT/sitemap.xml'"
-          echo "Files placed in primary Beget site root. BACKUP: $BACKUP"
-          echo "DO NOT change GoDaddy DNS until pre-cutover HTTP test against Beget passes."
+          echo "Files placed in primary Beget site root. Existing .htaccess retained. BACKUP: $BACKUP"
