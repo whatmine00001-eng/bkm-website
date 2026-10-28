@@ -82,7 +82,7 @@ def unify_header(text, name):
     head, content = text[:body.end()], text[body.end():]
     head = re.sub(r'\s*<style id="bkm-shared-header-style">.*?</style>', '', head, flags=re.S)
     head = re.sub(r'<style\b[^>]*id=["\']bkm-header-critical["\'][^>]*>.*?</style>', '', head, flags=re.I|re.S)
-    head = head.replace('</head>', '\n'+STYLE+'</head>', 1)
+    head = re.sub(r'\s*</head\s*>', lambda _: '\n'+STYLE+'</head>', head, count=1, flags=re.I)
     managed = re.search(r'<!-- BKM_SHARED_HEADER_BEGIN -->.*?<!-- BKM_SHARED_HEADER_END -->',content,re.S)
     if managed:
         content = content[:managed.start()]+header(name)+content[managed.end():]
@@ -108,8 +108,8 @@ def unify_header(text, name):
 if __name__ == '__main__':
     samples = [
         '<html><head><title>t</title></head><body><header><nav>old</nav></header><main>keep</main></body></html>',
-        '<html><head><title>t</title></head><body><div class="top"><div class="wrap"><span>old</span></div></div><header class="site-head">old</header><form>keep</form></body></html>',
-        '<html><head></head><body><svg><defs></defs></svg><div class="top-bar"><div class="container"><div>old</div></div></div><header class="site-header">old</header><main>keep</main><script src="assets/home.js" defer></script></body></html>'
+        '<html><head><title>t</title>\n\n</head><body><div class="top"><div class="wrap"><span>old</span></div></div><header class="site-head">old</header><form>keep</form></body></html>',
+        '<html><head>\n<!-- BKM_FINAL_BEGIN -->\n<style id="bkm-header-critical">.old{display:none}</style>\n<!-- BKM_FINAL_END -->\n</head><body><svg><defs></defs></svg><div class="top-bar"><div class="container"><div>old</div></div></div><header class="site-header">old</header><main>keep</main><script src="assets/home.js" defer></script></body></html>'
     ]
     for name in ('index.html','services.html','news.html','news-epd-2026.html'):
         for source in samples:
@@ -118,4 +118,4 @@ if __name__ == '__main__':
             assert result.count('Рассчитать доставку')==1
             assert result.count('assets/home.js?')==1
             assert all(label in result for label,_ in LINKS)
-    print('SHARED_HEADER_SELF_TEST_PASS: all legacy layouts, idempotence, single action, form preservation')
+    print('SHARED_HEADER_SELF_TEST_PASS: legacy layouts and whitespace, idempotence, single action, form preservation')
