@@ -6,14 +6,13 @@
   const button = form.querySelector('button[type="submit"]');
   const cfg = window.BKM_SITE_CONFIG || {};
   const live = cfg.formsEnabled === true && location.protocol === "https:";
+  let submitting = false;
 
   function feedback(message, type) {
     if (!status) return;
     status.textContent = message;
     status.dataset.type = type || "info";
   }
-
-  // Preview HTTP cannot safely transmit client contacts to the backend.
   if (!live) {
     if (button) button.textContent = "Подготовить письмо по заявке ↗";
     feedback("Тестовая версия: автоматическая отправка пока отключена. Данные можно отправить через вашу почтовую программу.", "info");
@@ -27,7 +26,7 @@
   let utm = {};
   try {
     utm = JSON.parse(sessionStorage.getItem("bkm_utms") || "{}");
-    if (!utm || typeof utm !== "object") utm = {};
+    if (!utm || typeof utm !== "object" || Array.isArray(utm)) utm = {};
   } catch (_) { utm = {}; }
   for (const key of utmKeys) {
     const value = params.get("utm_" + key);
@@ -37,7 +36,7 @@
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (!form.reportValidity()) return;
+    if (submitting || !form.reportValidity()) return;
     const data = new FormData(form);
     const payload = {
       name: String(data.get("name") || "").trim(),
@@ -56,44 +55,47 @@
     for (const key of utmKeys) payload["utm_" + key] = String(utm[key] || "").slice(0, 150);
 
     if (!live) {
-      const body = [
-        "Имя: " + payload.name,
-        "Компания: " + payload.company,
-        "Телефон: " + payload.phone,
-        "Email: " + payload.email,
-        "Услуга: " + payload.service,
-        "Откуда: " + payload.origin,
-        "Куда: " + payload.destination,
-        "Груз: " + payload.cargo,
-        "Комментарий: " + payload.details
-      ].join("\n");
+      const body = ["Имя: " + payload.name, "Компания: " + payload.company,
+        "Телефон: " + payload.phone, "Email: " + payload.email,
+        "Услуга: " + payload.service, "Откуда: " + payload.origin,
+        "Куда: " + payload.destination, "Груз: " + payload.cargo,
+        "Комментарий: " + payload.details].join("\n");
       location.href = "mailto:info@24bkm.com?subject=" +
         encodeURIComponent("Запрос с сайта БКМ") + "&body=" + encodeURIComponent(body);
       feedback("Откроется почтовая программа. Отправку письма нужно подтвердить там.", "info");
       return;
     }
 
+    submitting = true;
+    form.setAttribute("aria-busy", "true");
     if (button) {
       button.disabled = true;
       button.textContent = "Отправляем заявку…";
     }
     feedback("Передаём заявку в БКМ.", "info");
+    const controller = new AbortController();
+    const timeout = setTimeout(function () { controller.abort(); }, 25000);
     try {
-      const response = await fetch("api/lead.php", {
-        method: "POST",
-        credentials: "same-origin",
+      const response = await fetch("/api/lead.php", {
+        method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(payload),
-        cache: "no-store"
+        body: JSON.stringify(payload), cache: "no-store", signal: controller.signal
       });
       const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.code || "submission_failed");
+      if (!response.ok || result.ok !== true ||
+          !["lead_created", "accepted"].includes(result.code)) {
+        throw new Error("submission_not_confirmed");
+      }
       feedback("Заявка отправлена в БКМ. Спасибо! Мы свяжемся с вами.", "success");
       form.reset();
       if (typeof window.BKMTrackGoal === "function") window.BKMTrackGoal("bkm_lead_success");
     } catch (_) {
-      feedback("Не удалось подтвердить получение заявки. Пожалуйста, позвоните нам или отправьте письмо на info@24bkm.com.", "error");
+      // Never automatically retry: the CRM may have accepted a timed-out request.
+      feedback("Не удалось подтвердить получение заявки. Пожалуйста, не отправляйте её повторно сразу: позвоните нам или напишите на info@24bkm.com.", "error");
     } finally {
+      clearTimeout(timeout);
+      submitting = false;
+      form.removeAttribute("aria-busy");
       if (button) {
         button.disabled = false;
         button.textContent = "Отправить заявку в БКМ ↗";
