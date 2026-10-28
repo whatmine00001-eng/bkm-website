@@ -1,0 +1,6 @@
+28 October 2026 — owner requested removal of duplicate Calculate Delivery header actions and a sitewide visual/typography review.
+Publish only reviewed static assets: bkm-ui-polish.css, home-brand-final.css, interior-redesign.css, home.js.
+Candidate browser review 40643953331 succeeded: 14 current public pages, 46 viewport checks.
+Source revision including installer: 26abb3441f0c861c0a4a6000a006c2e81c230d3a.
+Preserve original logo, all HTML, slogans, site routes, .htaccess, DNS, webhook, private configuration and disabled public lead-collection flags.
+Back up four static assets and roll back if public integrity or live browser checks fail.
