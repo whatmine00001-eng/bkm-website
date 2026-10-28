@@ -1,0 +1,126 @@
+name: BKM UI Polish - Reviewed Static Assets Only
+on:
+  push:
+    branches: [main]
+    paths: ['.releases/bkm-ui-polish-20261028.txt']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+jobs:
+  publish-reviewed-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 26abb3441f0c861c0a4a6000a006c2e81c230d3a
+          persist-credentials: false
+      - name: Require completed visual review and validate narrow installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          php -l ops/apply-ui-polish.php
+          php ops/apply-ui-polish.php --self-test
+          node --check assets/home.js
+          python3 - <<'PY'
+          import json,os,urllib.request
+          url='https://api.github.com/repos/whatmine00001-eng/bkm-website/actions/runs/40643953331'
+          req=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(req,timeout=20) as r: result=json.load(r)
+          assert result['conclusion']=='success'
+          assert result['head_sha']=='2352735ab4d79703e6e45c5486fbc5d564b68152'
+          print('REVIEW_GATE_PASS: approved candidate browser run succeeded.')
+          PY
+      - name: Prepare browser verification tools before modifying hosting
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+      - name: Configure existing secured SSH
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+      - name: Backup, apply four static assets, verify browser or restore
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures,hashlib,os,shlex,subprocess,sys,urllib.request
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          base='https://24bkm.com'
+          files=['bkm-ui-polish.css','home-brand-final.css','interior-redesign.css','home.js']
+          def read(url):
+              req=urllib.request.Request(url,headers={'Cache-Control':'no-cache','User-Agent':'BKM-owner-UI-release/1.0'})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  if r.status!=200 or urlsplit(r.url).hostname not in ('24bkm.com','www.24bkm.com'):
+                      raise RuntimeError('Unexpected public response')
+                  return r.read(3000000)
+          sitemap=ET.fromstring(read(base+'/sitemap.xml'))
+          pages=[n.text for n in sitemap.findall('.//{*}loc')]
+          assert 8<=len(pages)<=40 and all(urlsplit(u).hostname=='24bkm.com' for u in pages)
+          stable=list(dict.fromkeys(pages+[base+'/robots.txt',base+'/sitemap.xml',base+'/assets/site-config.js',base+'/assets/bkm-header.svg']))
+          def digest(url): return hashlib.sha256(read(url)).hexdigest()
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+              before=dict(zip(stable,pool.map(digest,stable)))
+          assert b'formsEnabled: false' in read(base+'/assets/site-config.js')
+          run=os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
+          remote=os.environ['USER']+'@'+os.environ['HOST']
+          opts=['-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20']
+          folder='/home/h/help24pw/.bkm_releases/ui-polish-'+run
+          script=folder+'/apply.php'
+          def ssh(cmd): subprocess.run(['ssh',*opts,remote,cmd],check=True,timeout=45)
+          def invoke(mode): ssh('php8.2 '+shlex.quote(script)+' '+mode+' '+shlex.quote(run))
+          attempted=False
+          try:
+              ssh('mkdir -p '+shlex.quote(folder+'/assets')+' && chmod 700 '+shlex.quote(folder))
+              subprocess.run(['scp',*opts,'ops/apply-ui-polish.php',remote+':'+script],check=True,timeout=30)
+              subprocess.run(['scp',*opts,*['assets/'+n for n in files],remote+':'+folder+'/assets/'],check=True,timeout=30)
+              ssh('chmod 600 '+shlex.quote(script)+'; php8.2 -l '+shlex.quote(script))
+              attempted=True
+              invoke('apply')
+              for name in files:
+                  if read(base+'/assets/'+name+'?ui_check='+run)!=Path('assets',name).read_bytes():
+                      raise RuntimeError('Public static asset hash mismatch: '+name)
+              with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+                  after=dict(zip(stable,pool.map(digest,stable)))
+              if before!=after: raise RuntimeError('A protected page, logo, sitemap or public config changed')
+              subprocess.run([sys.executable,'scripts/test_ui_polish.py','--live'],check=True,timeout=400)
+              print('UI_LIVE_PASS: four CSS/JS assets published; live browser checks passed.')
+              print('UNCHANGED_PASS: all sitemap HTML pages, logo, robots, sitemap, site-config. No DNS, .htaccess, CRM or private config changes.')
+              print('PRIVATE_BACKUP: ui-polish-'+run)
+          except BaseException:
+              if attempted:
+                  print('Verification failed; restoring the four original static assets.',flush=True)
+                  invoke('rollback')
+              raise
+          finally:
+              paths=[script]+[folder+'/assets/'+n for n in files]
+              try:
+                  ssh('rm -f '+' '.join(shlex.quote(p) for p in paths)+'; rmdir '+shlex.quote(folder+'/assets')+' '+shlex.quote(folder))
+              except Exception:
+                  print('Private temporary CSS/JS cleanup needs review; no public PHP was installed.')
+          PY
+      - name: Save live browser screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bkm-ui-live-${{ github.run_id }}
+          path: ui-review/
+          retention-days: 7
+          if-no-files-found: warn
