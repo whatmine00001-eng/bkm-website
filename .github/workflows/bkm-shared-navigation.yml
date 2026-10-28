@@ -1,0 +1,55 @@
+name: BKM Shared Navigation - Static HTML Only
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bkm-shared-navigation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+jobs:
+  unify-navigation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3f269badf90c2287dd7c34838a0c5bd13c10cb4c
+          persist-credentials: false
+      - name: Compile and test shared header without network
+        run: |
+          set -eu
+          python3 -m py_compile scripts/site_header.py ops/release-site-header.py
+          python3 scripts/site_header.py
+      - name: Prepare browser before changing hosting
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+      - name: Configure existing secured Beget connection
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+      - name: Verify all page headers, back up, publish and verify live or restore
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: python3 ops/release-site-header.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bkm-shared-header-${{ github.run_id }}
+          path: shared-header-review/
+          retention-days: 7
+          if-no-files-found: warn
