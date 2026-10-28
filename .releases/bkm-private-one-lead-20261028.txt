@@ -1,0 +1,5 @@
+Owner has authorized creating one clearly identified service test lead assigned to Kirill, ID 7, with a notification request.
+Scope of this run: PRIVATE CLI on Beget only, using the existing private webhook; create at most one fixed synthetic lead, then read back only its returned ID.
+No real client contacts, no public endpoint, no changes to intake flags, no publication of website files, no DNS or privacy approval changes.
+This server-to-CRM diagnostic does NOT prove that the public website form works. Public-form publication is not part of this run.
+Pinned diagnostic: 4449d6f71d27b71d51d10cbcff2e95abd0269455.
