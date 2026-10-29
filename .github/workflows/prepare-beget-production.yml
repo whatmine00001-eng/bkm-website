@@ -53,6 +53,8 @@ jobs:
                   page.write_text(unify(page.read_text(encoding='utf-8'), page.name), encoding='utf-8')
           print('Shared navigation generated; CRM form content unchanged.')
           PY
+          python3 scripts/financial_support.py --self-test
+          python3 scripts/financial_support.py _production_release
           python3 scripts/test_contacts.py
           test -s _production_release/index.html
           test -s _production_release/sitemap.xml
