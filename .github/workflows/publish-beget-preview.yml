@@ -38,6 +38,7 @@ jobs:
           set -eu
           python3 -m compileall -q scripts
           python3 scripts/test_crm_release.py
+          python3 scripts/financial_support.py --self-test
           for file in index.html services.html customs-clearance.html international-freight.html freight-forwarding.html warehousing-logistics.html consolidated-cargo.html news.html; do
             test -s "$file"
             grep -qi '<html' "$file"
@@ -76,6 +77,7 @@ jobs:
         run: |
           set -eu
           python3 scripts/build-production.py
+          python3 scripts/financial_support.py _production_release
           python3 scripts/test_contacts.py
           test -s _production_release/index.html
           test -s _production_release/sitemap.xml
@@ -92,6 +94,7 @@ jobs:
         run: |
           set -eu
           python3 scripts/build-preview.py
+          python3 scripts/financial_support.py _preview_release
           test -s _preview_release/index.html
           test -s _preview_release/robots.txt
           test -s _preview_release/assets/bkm-header.svg
