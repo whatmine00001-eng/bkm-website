@@ -1,0 +1,61 @@
+name: BKM Financial Support - Scoped Content Release
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bkm-financial-support.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+jobs:
+  publish-financial-support:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5d087ca5cdf0bc3d5258153a103e3a1c09470e23
+          persist-credentials: false
+      - name: Validate content transformation before any remote write
+        run: |
+          set -eu
+          python3 -m py_compile scripts/financial_support.py ops/release-financial-support.py
+          python3 scripts/financial_support.py --self-test
+          BKM_CRM_RELEASE=off python3 scripts/build-production.py
+          python3 scripts/financial_support.py _production_release
+          python3 scripts/test_contacts.py
+          test ! -e _production_release/api/lead.php
+          grep -q 'formsEnabled: false' _production_release/assets/site-config.js
+      - name: Install browser tests before changing hosting
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+      - name: Configure existing secured Beget connection
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+      - name: Review two-page candidate, back up, publish, verify or roll back
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: python3 ops/release-financial-support.py
+      - name: Retain screenshots and public-only candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bkm-financial-support-${{ github.run_id }}
+          path: financial-support-review/
+          retention-days: 7
+          if-no-files-found: warn
