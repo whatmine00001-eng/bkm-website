@@ -43,22 +43,19 @@ def prepare(live, candidate, dest):
         raise ValueError('Unexpected preview CSS or script layout; refusing overwrite')
     if result.count('id="bkm-lead-form"') != 1 or 'data-bkm-form-preview' in result:
         raise ValueError('Incorrect HTML form replacement')
-    # The old mail-only production release deliberately removed lead-form.js.
-    # Restoring the HTML form alone would silently submit nothing: reattach the
-    # real deferred handler after the already-present public site config.
-    if not re.search(r'<script\\b[^>]*src=["\\\']assets/site-config\\.js(?:\\?[^"\\\']*)?["\\\']', result, re.I):
-        raise ValueError('Live homepage lacks site-config.js; cannot safely activate')
-    handler = re.findall(r'<script\\b[^>]*src=["\\\']assets/lead-form\\.js(?:\\?[^"\\\']*)?["\\\']', result, re.I)
-    if len(handler) > 1:
-        raise ValueError('Duplicate lead handler')
-    if not handler:
-        result, count = re.subn(r'</body\\s*>',
-            '<script src="assets/lead-form.js" defer></script>\\n</body>',
-            result, count=1, flags=re.I)
-        if count != 1:
-            raise ValueError('Cannot restore deferred lead form handler')
-    if len(re.findall(r'<script\\b[^>]*src=["\\\']assets/lead-form\\.js(?:\\?[^"\\\']*)?["\\\']', result, re.I)) != 1:
-        raise ValueError('Real lead form JavaScript was not attached')
+    # The previous safe-release build intentionally excluded the submit script.
+    # Reattach it when converting the test-only preview into an actual form.
+    if result.count('assets/site-config.js') != 1:
+        raise ValueError('Live homepage must load site-config.js exactly once')
+    handler_count = result.count('assets/lead-form.js')
+    if handler_count > 1:
+        raise ValueError('Duplicate lead form JavaScript')
+    if handler_count == 0:
+        if result.count('</body>') != 1:
+            raise ValueError('Cannot reattach lead form JavaScript')
+        result = result.replace('</body>', '<script src="assets/lead-form.js" defer></script>' + chr(10) + '</body>', 1)
+    if result.count('assets/lead-form.js') != 1:
+        raise ValueError('Lead form script was not attached')
     for tag in ('header', 'footer'):
         rx = re.compile(r'<'+tag+r'\b.*?</'+tag+r'>', re.I | re.S)
         if rx.findall(current) != rx.findall(result):
