@@ -60,15 +60,16 @@ def main():
         (root / "approved").mkdir()
         (root / "approved" / "privacy.html").write_text(
             APPROVED.replace('content="approved"', 'content="draft"'), encoding="utf-8")
+        consent_fixture = '<!doctype html><html><head><meta name="bkm-consent-version" content="test-v1"></head><body>Consent test</body></html>'
+        (root / "approved" / "consent.html").write_text(consent_fixture, encoding="utf-8")
         result = run(root, "on")
         assert result.returncode != 0 and "approval marker" in (result.stderr + result.stdout)
 
         (root / "approved" / "privacy.html").write_text(APPROVED, encoding="utf-8")
+        (root / "approved" / "consent.html").unlink()
         result = run(root, "on")
         assert result.returncode != 0 and "approved/consent.html is missing" in (result.stderr+result.stdout)
-        (root / "approved" / "consent.html").write_text(
-            '<!doctype html><html><head><meta name="bkm-consent-version" content="test-v1"></head><body>Consent test</body></html>',
-            encoding="utf-8")
+        (root / "approved" / "consent.html").write_text(consent_fixture, encoding="utf-8")
 
         result = run(root, "on")
         assert result.returncode == 0, result.stderr or result.stdout
