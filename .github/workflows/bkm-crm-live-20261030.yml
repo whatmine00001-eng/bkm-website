@@ -1,0 +1,165 @@
+name: BKM CRM Live Activation - Owner Approved - One Scoped Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bkm-crm-live-20261030.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      BKM_CRM_RELEASE: "on"
+      DEPLOY_HOST: ${{ secrets.BEGET_HOST }}
+      DEPLOY_USER: ${{ secrets.BEGET_USER }}
+    steps:
+      - name: Checkout audited BKM site and transactional release code
+        uses: actions/checkout@v4
+        with:
+          ref: 6436be7b92a012170e77a9e9940f30c665881a03
+          persist-credentials: false
+
+      - name: Validate approved policy, backend and CRM production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q scripts ops
+          python3 scripts/test_crm_release.py
+          python3 scripts/build-production.py
+          php -l api/lead.php
+          php -l ops/crm_verify_lead.php
+          node --check assets/lead-form.js
+          python3 scripts/test_lead_safety.py
+          python3 scripts/test_contacts.py
+          grep -q 'formsEnabled: true' _production_release/assets/site-config.js
+          grep -q 'analyticsEnabled: false' _production_release/assets/site-config.js
+          grep -q 'bkm-policy-status.*approved' _production_release/privacy.html
+          grep -q 'bkm-consent-version' _production_release/consent.html
+          test -s _production_release/api/lead.php
+          echo "APPROVED_CRM_CANDIDATE_PASS"
+
+      - name: Set up existing known-host-only Beget SSH credentials
+        shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$DEPLOY_HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Check private CRM webhook and snapshot the current live site
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
+          RUN="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          STAGE="/home/h/help24pw/.bkm_releases/crm-web-$RUN"
+          ROOT="/home/h/help24pw/24bkm.com/public_html"
+          REMOTE="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh $SSH_OPTS "$REMOTE" "test -d '$ROOT' && test -r '/home/h/help24pw/.bkm_private/config.php' && mkdir -m 700 -p '$STAGE'"
+          scp $SSH_OPTS scripts/check-crm-config.php "$REMOTE:$STAGE/preflight.php"
+          ssh $SSH_OPTS "$REMOTE" "php8.2 '$STAGE/preflight.php' --connection-only && rm -f '$STAGE/preflight.php'"
+          mkdir -p live-snapshot
+          for item in index.html privacy.html consent.html assets/site-config.js assets/lead-form.js api/lead.php; do
+            if ssh $SSH_OPTS "$REMOTE" "test -f '$ROOT/$item'"; then
+              mkdir -p "live-snapshot/$(dirname "$item")"
+              scp $SSH_OPTS -q "$REMOTE:$ROOT/$item" "live-snapshot/$item"
+            fi
+          done
+          test -s live-snapshot/index.html
+          echo "LIVE_SNAPSHOT_PASS: public files only, no secrets read from web directory"
+
+      - name: Prepare exact 6-file bundle, preserving all live pages and navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/prepare-live-crm.py live-snapshot _production_release crm-stage
+          RUN="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          STAGE="/home/h/help24pw/.bkm_releases/crm-web-$RUN"
+          REMOTE="$DEPLOY_USER@$DEPLOY_HOST"
+          SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
+          rsync -a --chmod=D700,F600 -e "ssh $SSH_OPTS" crm-stage/ "$REMOTE:$STAGE/"
+          scp $SSH_OPTS ops/crm_release_server.py "$REMOTE:$STAGE/release_server.py"
+          scp $SSH_OPTS ops/crm_verify_lead.php "$REMOTE:$STAGE/verify_lead.php"
+          echo "CRM_SIX_FILES_READY: homepage form, policy, consent, public config, JS and PHP only"
+
+      - name: Install Chromium for real browser-to-Bitrix lead verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+
+      - name: Deploy, activate server flags, submit ONE synthetic browser lead, verify ID 7
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_OPTS="-o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
+          REMOTE="$DEPLOY_USER@$DEPLOY_HOST"
+          RUN="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          STAGE="/home/h/help24pw/.bkm_releases/crm-web-$RUN"
+          rollback() {
+            echo "::warning::CRM verification failed; attempting transactional rollback"
+            ssh $SSH_OPTS "$REMOTE" "python3 '$STAGE/release_server.py' rollback '$RUN'" || true
+          }
+          trap rollback ERR
+          ssh $SSH_OPTS "$REMOTE" "python3 '$STAGE/release_server.py' prepare '$RUN'"
+          # Files are now public but the private collection switches remain false.
+          ssh $SSH_OPTS "$REMOTE" "php8.2 '$STAGE/preflight.php' --connection-only" 2>/dev/null || true
+          ssh $SSH_OPTS "$REMOTE" "python3 '$STAGE/release_server.py' activate '$RUN'"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright, expect
+          with sync_playwright() as pw:
+              browser = pw.chromium.launch()
+              ctx = browser.new_context(viewport={'width': 1280, 'height': 900})
+              page = ctx.new_page()
+              page.goto('https://24bkm.com/index.html#contact', wait_until='networkidle', timeout=45000)
+              expect(page.locator('#bkm-lead-form')).to_be_visible()
+              assert page.locator('[data-bkm-form-preview]').count() == 0
+              assert page.locator('#bkm-header').count() == 1
+              config = page.evaluate('window.BKM_SITE_CONFIG')
+              assert config['formsEnabled'] is True
+              assert config['analyticsEnabled'] is False
+              page.locator('#bkm-lead-form input[name=name]').fill('ТЕСТ БКМ')
+              page.locator('#bkm-lead-form input[name=phone]').fill('+70000000000')
+              page.locator('#bkm-lead-form input[name=company]').fill('ТЕСТ БКМ — служебный лид, не связываться')
+              page.locator('#bkm-lead-form select[name=service]').select_option(label='Сборные грузы')
+              page.locator('#bkm-lead-form textarea[name=details]').fill('Автоматическая проверка подключения 24bkm.com к Bitrix24. Данные вымышленные. Не связываться.')
+              page.locator('#bkm-lead-form input[name=consent]').check()
+              with page.expect_response(lambda r: '/api/lead.php' in r.url and r.request.method == 'POST', timeout=35000) as response_info:
+                  page.locator('#bkm-lead-form button[type=submit]').click()
+              response = response_info.value
+              result = response.json()
+              assert response.status == 200 and result.get('ok') is True and result.get('code') == 'lead_created', (response.status, result.get('code'))
+              lead_id = result.get('lead_id')
+              assert isinstance(lead_id, int) and lead_id > 0
+              expect(page.locator('#bkm-form-status')).to_contain_text('Заявка отправлена', timeout=15000)
+              Path('bkm-test-lead-id.txt').write_text(str(lead_id), encoding='ascii')
+              print('BROWSER_TO_BEGET_TO_BITRIX_PASS: lead_id='+str(lead_id))
+              ctx.close()
+              browser.close()
+          PY
+          ID="$(cat bkm-test-lead-id.txt)"
+          test "$ID" -gt 0
+          ssh $SSH_OPTS "$REMOTE" "php8.2 '$STAGE/verify_lead.php' '$ID'"
+          ssh $SSH_OPTS "$REMOTE" "test -s '/home/h/help24pw/24bkm.com/public_html/privacy.html' && test -s '/home/h/help24pw/24bkm.com/public_html/consent.html'"
+          trap - ERR
+          echo "CRM_LIVE_ACTIVATION_SUCCESS: production intake ON; one synthetic lead verified; no unrelated pages, CSS, DNS or analytics changed"
