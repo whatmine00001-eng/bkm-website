@@ -66,6 +66,8 @@ jobs:
                   target = value.split("#")[0].split("?")[0]
                   if not target or ":" in target or target.startswith(("#", "//", "/")):
                       continue
+                  if target == "consent.html" and Path("approved/consent.html").is_file():
+                      continue
                   if not (page.parent / target).is_file():
                       broken.append(f"{page}: missing {target}")
           if broken:
