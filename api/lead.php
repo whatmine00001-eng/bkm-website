@@ -11,9 +11,11 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 
-function reply(int $status, string $code, bool $ok = false): void {
+function reply(int $status, string $code, bool $ok = false, ?int $leadId = null): void {
     http_response_code($status);
-    echo json_encode(['ok' => $ok, 'code' => $code], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $out = ['ok' => $ok, 'code' => $code];
+    if ($leadId !== null && $ok) { $out['lead_id'] = $leadId; }
+    echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -66,7 +68,7 @@ if (!is_array($config) || ($config['enabled'] ?? false) !== true ||
     ($config['privacy_approved'] ?? false) !== true) {
     reply(503, 'not_enabled');
 }
-if (!is_file(dirname(__DIR__) . '/privacy.html')) {
+if (!is_file(dirname(__DIR__) . '/privacy.html') || !is_file(dirname(__DIR__) . '/consent.html')) {
     reply(503, 'policy_not_available');
 }
 $salt = (string) ($config['rate_salt'] ?? '');
@@ -107,7 +109,8 @@ if (mb_strlen($name) < 2 || mb_strlen($phone) < 7 ||
 }
 if (!in_array($service, [
     'Международные перевозки', 'Таможенное оформление',
-    'Экспедирование', 'Логистика и склад', 'Сборные грузы', 'Другое'
+    'Экспедирование', 'Логистика и склад', 'Сборные грузы',
+    'Финансовое сопровождение', 'Другое'
 ], true)) {
     reply(422, 'invalid_service');
 }
@@ -166,7 +169,9 @@ $comments = implode("\n", [
     'Груз: ' . $cargo,
     'Пожелания: ' . $details,
     'Страница сайта: ' . $path,
-    'Согласие с обработкой данных предоставлено на сайте: ' . gmdate('c')
+    'Согласие на обработку данных на сайте: ' . gmdate('c'),
+    'Редакция согласия: bkm-consent-2026-10-30-v1',
+    'Политика: https://24bkm.com/privacy.html'
 ]);
 $fields = [
     'TITLE' => 'Сайт БКМ — ' . $service,
@@ -228,4 +233,8 @@ if ($errorCode !== 0 || $status !== 200 || !is_array($json) ||
         ' code=' . (is_array($json) ? preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($json['error'] ?? 'response')) : 'response'));
     reply(502, 'crm_unavailable');
 }
-reply(200, 'lead_created', true);
+$leadId = filter_var($json['result'] ?? null, FILTER_VALIDATE_INT);
+if ($leadId === false || (int) $leadId <= 0) {
+    reply(502, 'crm_invalid_response');
+}
+reply(200, 'lead_created', true, (int) $leadId);
