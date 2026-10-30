@@ -83,7 +83,7 @@
       });
       const result = await response.json();
       if (!response.ok || result.ok !== true ||
-          !["lead_created", "accepted"].includes(result.code)) {
+          result.code !== "lead_created") {
         throw new Error("submission_not_confirmed");
       }
       feedback("Заявка отправлена в БКМ. Спасибо! Мы свяжемся с вами.", "success");
