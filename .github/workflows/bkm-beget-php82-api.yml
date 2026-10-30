@@ -1,0 +1,60 @@
+name: BKM PHP 8.2 Beget API Safe Switch - If Credentials Exist
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bkm-beget-php82-api.yml']
+permissions:
+  contents: read
+jobs:
+  php-version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      API_LOGIN: ${{ secrets.BEGET_API_LOGIN }}
+      SSH_LOGIN: ${{ secrets.BEGET_USER }}
+      API_PASSWORD: ${{ secrets.BEGET_API_PASSWORD }}
+      ACCOUNT_PASSWORD: ${{ secrets.BEGET_PASSWORD }}
+      ALT_PASSWORD: ${{ secrets.BEGET_PASS }}
+    steps:
+      - name: Use official Beget domain API only with preexisting private credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          login=os.environ.get('API_LOGIN') or os.environ.get('SSH_LOGIN')
+          password=os.environ.get('API_PASSWORD') or os.environ.get('ACCOUNT_PASSWORD') or os.environ.get('ALT_PASSWORD')
+          if not login or not password:
+              print('BEGET_API_AUTH_NOT_CONFIGURED: no existing API password secret; no site setting changed')
+              raise SystemExit(0)
+          def api(method,domain,**kwargs):
+              payload={'login':login,'passwd':password,'output_format':'json','full_fqdn':domain}
+              payload.update(kwargs)
+              request=urllib.request.Request('https://api.beget.com/api/domain/'+method,
+                    data=urllib.parse.urlencode(payload).encode('utf-8'),
+                    headers={'Content-Type':'application/x-www-form-urlencoded'})
+              with urllib.request.urlopen(request,timeout=18) as response:
+                  obj=json.loads(response.read(150000))
+              if obj.get('status')!='success' or obj.get('answer',{}).get('status')!='success':
+                  raise ValueError('Beget API did not confirm '+method+' on '+domain)
+              return obj.get('answer',{}).get('result',{})
+          for domain in ('24bkm.com','www.24bkm.com'):
+              try:
+                  info=api('getPhpVersion',domain)
+              except Exception as ex:
+                  print('BEGET_API_CHECK_NOT_AVAILABLE for',domain,type(ex).__name__)
+                  raise SystemExit(1)
+              version=str(info.get('php_version',''))
+              allowed=info.get('allowed_versions') or []
+              print('PHP_VERSION_BEFORE',domain,version,'8.2_available',('8.2' in allowed))
+              if version=='8.2':
+                  print('PHP_VERSION_ALREADY_82',domain)
+                  continue
+              if '8.2' not in allowed:
+                  print('BEGET_PHP82_NOT_OFFERED',domain)
+                  raise SystemExit(1)
+              cgi=(str(info.get('cgi','')).lower()=='enabled')
+              change=api('changePhpVersion',domain,php_version='8.2',is_cgi='true' if cgi else 'false')
+              print('BEGET_PHP82_CHANGE_ACCEPTED',domain,'requested=8.2','reported_version',change.get('php_version','unknown'))
+          print('BEGET_PHP_REQUEST_COMPLETE: recheck web handler version before enabling CRM')
+          PY
