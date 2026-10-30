@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 4b2d4bd82de61c1fa3b7a45558f5a7ada85fe7af
+          ref: 6c96a9fd563e0117a3610146239ef7ce772ceb5e
           persist-credentials: false
       - name: Verify PHP, JS and consent documents
         run: |
