@@ -14,7 +14,7 @@ import sys
 
 FILES = ('index.html', 'privacy.html', 'consent.html', 'assets/site-config.js',
          'assets/lead-form.js', 'api/lead.php')
-SECTION = re.compile(r'<section\b[^>]*\bclass="contact"\b[^>]*\bid="contact"[^>]*>.*?</section>', re.I | re.S)
+SECTION = re.compile(r'<section\b[^>]*\bclass="contact"[^>]*\bid="contact"[^>]*>.*?</section>', re.I | re.S)
 PREVIEW_STYLE = re.compile(r'\s*<style\s+id="bkm-form-preview-style"[^>]*>.*?</style>', re.I | re.S)
 PREVIEW_SCRIPT = re.compile(r'\s*<script\s+id="bkm-form-preview-script"[^>]*>.*?</script>', re.I | re.S)
 
