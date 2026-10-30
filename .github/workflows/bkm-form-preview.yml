@@ -1,0 +1,54 @@
+name: BKM Form Preview - No Data Collection
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bkm-form-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+jobs:
+  preview-form:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 614fe00b299588895ee676d07c90497ab761e09b
+          persist-credentials: false
+      - name: Check preview-only transformation
+        run: |
+          python3 -m py_compile scripts/form_preview.py ops/release-form-preview.py
+          python3 scripts/form_preview.py
+      - name: Prepare browser before hosting changes
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+      - name: Configure existing secured Beget connection
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+      - name: Review, back up, publish one homepage and verify or restore
+        env:
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: python3 ops/release-form-preview.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bkm-form-preview-${{ github.run_id }}
+          path: form-preview-review/
+          retention-days: 7
+          if-no-files-found: warn
