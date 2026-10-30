@@ -101,14 +101,14 @@
     <label class="field">Компания<input name="company" maxlength="160" autocomplete="organization" placeholder="Название организации"></label>
     <label class="field">Email<input name="email" type="email" maxlength="160" autocomplete="email" placeholder="email@example.com"></label>
     <label class="field full">Направление<select name="service" required>
-     <option>Международные перевозки</option><option>Таможенное оформление</option><option>Экспедирование</option><option>Логистика и склад</option><option>Сборные грузы</option><option>Другое</option>
+     <option>Международные перевозки</option><option>Таможенное оформление</option><option>Экспедирование</option><option>Логистика и склад</option><option>Сборные грузы</option><option>Финансовое сопровождение</option><option>Другое</option>
     </select></label>
     <label class="field">Откуда<input name="origin" maxlength="150" placeholder="Город, страна"></label>
     <label class="field">Куда<input name="destination" maxlength="150" placeholder="Город, страна"></label>
     <label class="field full">Тип и объём груза<input name="cargo" maxlength="180" placeholder="Наименование, вес, объём"></label>
     <label class="field full">Описание задачи<textarea name="details" maxlength="1600" rows="3" placeholder="Особенности перевозки, сроки, документы"></textarea></label>
     <div class="bkm-trap" aria-hidden="true"><label>Сайт<input name="website" tabindex="-1" autocomplete="off"></label></div>
-    <label class="field full bkm-consent"><span><input name="consent" type="checkbox" required> Согласен на обработку переданных сведений для ответа на обращение. <a href="privacy.html" target="_blank" rel="noopener">Информация об обработке данных</a>.</span></label>
+    <label class="field full bkm-consent"><span><input name="consent" type="checkbox" required> Даю <a href="consent.html" target="_blank" rel="noopener noreferrer">согласие на обработку персональных данных</a> для ответа на обращение. С <a href="privacy.html" target="_blank" rel="noopener noreferrer">Политикой обработки персональных данных</a> можно ознакомиться отдельно.</span></label>
    </div>
    <div class="form__actions"><button class="btn" type="submit">Подготовить письмо по заявке <svg class="icon" aria-hidden="true"><use href="#i-arrow"></use></svg></button></div>
    <p class="bkm-status" id="bkm-form-status" role="status" aria-live="polite"></p>
