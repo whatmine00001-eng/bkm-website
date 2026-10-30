@@ -21,9 +21,16 @@ if CRM_RELEASE not in ("off", "on"):
     raise SystemExit("BKM_CRM_RELEASE must be 'off' or 'on'")
 # This file must be replaced by the actual policy approved by the company.
 APPROVED_POLICY = ROOT / "approved" / "privacy.html"
+APPROVED_CONSENT = ROOT / "approved" / "consent.html"
 if CRM_RELEASE == "on":
     if not APPROVED_POLICY.is_file():
         raise SystemExit("CRM release blocked: approved/privacy.html is missing")
+    if not APPROVED_CONSENT.is_file():
+        raise SystemExit("CRM release blocked: approved/consent.html is missing")
+    consent_source = APPROVED_CONSENT.read_text(encoding="utf-8")
+    if ('<meta name="bkm-consent-version"' not in consent_source or
+            '<html' not in consent_source.lower() or '</html>' not in consent_source.lower()):
+        raise SystemExit("CRM release blocked: invalid separate consent HTML")
     policy_source = APPROVED_POLICY.read_text(encoding="utf-8")
     if not re.search(r'<meta\s+name=["\']bkm-policy-status["\']\s+content=["\']approved["\']', policy_source, re.I):
         raise SystemExit("CRM release blocked: policy approval marker is missing")
@@ -110,6 +117,17 @@ if CRM_RELEASE == "on":
         re.sub(r'</head>', '<link rel="canonical" href="https://24bkm.com/privacy.html"></head>',
                policy_source, count=1, flags=re.I), encoding="utf-8"
     )
+    (DEST / "consent.html").write_text(consent_source, encoding="utf-8")
+    idx = DEST / "index.html"
+    idx_html = idx.read_text(encoding="utf-8")
+    consent_label = """<label class="field full bkm-consent"><span><input name="consent" type="checkbox" required> Даю <a href="consent.html" target="_blank" rel="noopener noreferrer">согласие на обработку персональных данных</a> для ответа на заявку. Ознакомлен(а) с <a href="privacy.html" target="_blank" rel="noopener noreferrer">Политикой обработки персональных данных</a>.</span></label>"""
+    idx_html, n = re.subn(r'<label\s+class="field full bkm-consent">.*?</label>',
+                           lambda _: consent_label, idx_html, count=1, flags=re.S | re.I)
+    if n != 1:
+        raise SystemExit("CRM release blocked: consent checkbox not found")
+    idx_html = idx_html.replace('<option>Другое</option>',
+                                '<option>Финансовое сопровождение</option><option>Другое</option>')
+    idx.write_text(idx_html, encoding="utf-8")
     (DEST / "api").mkdir(exist_ok=True)
     shutil.copy2(ROOT / "api" / "lead.php", DEST / "api" / "lead.php")
     cfg_path = DEST / "assets" / "site-config.js"
@@ -150,6 +168,8 @@ if CRM_RELEASE == "off":
     if "formsEnabled: true" in (DEST / "assets" / "site-config.js").read_text(encoding="utf-8"):
         raise SystemExit("CRM unexpectedly enabled in default release")
 else:
+    if not (DEST / "consent.html").is_file():
+        raise SystemExit("CRM release missing separate consent HTML")
     if not (DEST / "api" / "lead.php").is_file() or not (DEST / "privacy.html").is_file():
         raise SystemExit("CRM release missing backend or approved privacy policy")
     if "formsEnabled: true" not in (DEST / "assets" / "site-config.js").read_text(encoding="utf-8"):
