@@ -37,7 +37,7 @@ for path in PAGES:
         body = re.sub(r'<(input|select|textarea)\b', r'<\1 disabled', body, flags=re.I)
         body = re.sub(r'<button\b', r'<button disabled', body, flags=re.I)
         body = re.sub(
-            r'<a\s+href=["\']privacy\.html["\'][^>]*>([\s\S]*?)</a>',
+            r'<a\s+href=["\'](?:privacy|consent)\.html["\'][^>]*>([\s\S]*?)</a>',
             r'\1 (документ в подготовке)', body, flags=re.I
         )
         body = body.replace(
@@ -59,7 +59,7 @@ for path in PAGES:
             '', source, flags=re.I
         )
 
-    if re.search(r'href=["\']privacy\.html["\']', source, flags=re.I):
+    if re.search(r'href=["\'](?:privacy|consent)\.html["\']', source, flags=re.I):
         raise SystemExit(f"Preview build blocked: draft privacy link on {path.name}")
     (DEST / path.name).write_text(source, encoding="utf-8")
 
