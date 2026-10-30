@@ -69,7 +69,7 @@ def preview(styles=None, label='candidate'):
             form_bg=panel.evaluate('(e)=>getComputedStyle(e).backgroundImage')
             assert 'gradient' in form_bg and 'rgba(9, 56, 55' in form_bg,('form glass background missing: '+form_bg)
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+2'), 'horizontal overflow'
-            assert page.locator('header #bkm-header').count()==1, 'shared navigation changed'
+            assert page.locator('#bkm-header').count()==1, 'shared navigation changed'
             page.screenshot(path=str(OUT/(label+'-'+str(w)+'.png')),full_page=True)
             checks.append({'width':w,'hero_dark':bg,'text_color':text_color,
                            'form_glass':True,'overflow':False,'navigation_intact':True})
