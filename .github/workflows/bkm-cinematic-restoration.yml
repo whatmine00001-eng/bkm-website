@@ -22,7 +22,7 @@ jobs:
       - name: Checkout approved CSS and release logic
         uses: actions/checkout@v4
         with:
-          ref: 3b461bf5b9404c8e871a24ad4c67753b9491217c
+          ref: 98a5fa3774be45574667939f46d1f2f40c9f06c5
           persist-credentials: false
 
       - name: Verify targeted CSS-only release
