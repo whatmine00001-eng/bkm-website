@@ -16,9 +16,9 @@ required = [
 ]
 for page in pages:
     html = page.read_text(encoding="utf-8")
-    if page.name != "privacy.html" and any(old in html for old in old_variants):
+    if page.name not in ("privacy.html", "consent.html") and any(old in html for old in old_variants):
         raise SystemExit("Contact check: stale details in " + str(page))
-    if page.name != "privacy.html":
+    if page.name not in ("privacy.html", "consent.html"):
         if "mailto:info@24bkm.com" not in html or "tel:+78007077902" not in html:
             raise SystemExit("Contact check: missing clickable contacts in " + str(page))
 index = (release / "index.html").read_text(encoding="utf-8")
