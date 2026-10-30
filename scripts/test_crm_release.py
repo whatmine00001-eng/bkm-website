@@ -58,6 +58,8 @@ def main():
             result.stderr + result.stdout)
 
         (root / "approved").mkdir()
+        (root / "approved" / "consent.html").write_text(
+            '<html><head><meta name="bkm-consent-version" content="test-v1"></head><body>Consent</body></html>', encoding="utf-8")
         (root / "approved" / "privacy.html").write_text(
             APPROVED.replace('content="approved"', 'content="draft"'), encoding="utf-8")
         consent_fixture = '<!doctype html><html><head><meta name="bkm-consent-version" content="test-v1"></head><body>Consent test</body></html>'
@@ -75,6 +77,7 @@ def main():
         assert result.returncode == 0, result.stderr or result.stdout
         assert (dest / "api" / "lead.php").is_file()
         assert (dest / "privacy.html").is_file()
+        assert (dest / "consent.html").is_file()
         assert (dest / "consent.html").is_file()
         assert 'href="consent.html"' in (dest / "index.html").read_text()
         assert 'formsEnabled: true' in (dest / "assets" / "site-config.js").read_text()
