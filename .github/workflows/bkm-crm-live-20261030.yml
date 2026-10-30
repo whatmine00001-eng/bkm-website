@@ -26,7 +26,7 @@ jobs:
       - name: Checkout audited BKM site and transactional release code
         uses: actions/checkout@v4
         with:
-          ref: 6436be7b92a012170e77a9e9940f30c665881a03
+          ref: 72d2a5c5f26b0af5c5216396822c16f473bf3f06
           persist-credentials: false
 
       - name: Validate approved policy, backend and CRM production build
