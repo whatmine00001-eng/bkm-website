@@ -1,0 +1,71 @@
+name: BKM Cinematic Restoration - Single CSS Asset Only
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bkm-cinematic-restoration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bkm-beget-live
+  cancel-in-progress: false
+
+jobs:
+  restore-cinematic-style:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout approved CSS and release logic
+        uses: actions/checkout@v4
+        with:
+          ref: 3b461bf5b9404c8e871a24ad4c67753b9491217c
+          persist-credentials: false
+
+      - name: Verify targeted CSS-only release
+        run: |
+          set -eu
+          python3 -m py_compile ops/release-cinematic-style.py
+          test -s assets/home-brand-final.css
+          grep -q BKM_CINEMATIC_RESTORE_20261030 assets/home-brand-final.css
+          ! grep -q bitrix_webhook_url assets/home-brand-final.css
+          echo "Only one existing CSS asset can be deployed; no CRM or HTML changes."
+
+      - name: Install isolated browser for BEFORE and AFTER checks
+        run: |
+          python3 -m pip install playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+
+      - name: Configure existing verified Beget SSH credentials
+        env:
+          DEPLOY_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS"
+          test -n "$BEGET_HOST" && test -n "$BEGET_USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$BEGET_HOST" -f ~/.ssh/known_hosts >/dev/null
+
+      - name: Test candidate, publish one CSS, check live UI or roll back
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+        run: python3 ops/release-cinematic-style.py
+
+      - name: Save before/after browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bkm-cinematic-${{ github.run_id }}
+          path: cinematic-style-review/
+          retention-days: 7
+          if-no-files-found: warn
