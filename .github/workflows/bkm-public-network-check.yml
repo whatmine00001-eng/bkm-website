@@ -1,0 +1,66 @@
+name: BKM Public Network Diagnostic - Read Only
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bkm-public-network-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  network:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0a9606d63eb60b3c834ca869a00be7ea0f18464c
+          persist-credentials: false
+      - name: Public DNS, HTTPS, TLS 1.2/1.3, redirects and external hosts
+        run: python3 scripts/check-public-network.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bkm-network-${{ matrix.os }}-${{ github.run_id }}
+          path: network-review/
+          retention-days: 7
+  server-rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Read only access-rule indicators without exposing configuration or credentials
+        env:
+          SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          SSH_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+          HOST: ${{ secrets.BEGET_HOST }}
+          USER: ${{ secrets.BEGET_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$HOST" && test -n "$USER"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts >/dev/null
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 "$USER@$HOST" 'python3 -' <<'PY'
+          from pathlib import Path
+          import re,json,hashlib
+          root=Path('/home/h/help24pw/24bkm.com/public_html')
+          paths=[root/'.htaccess',root.parent/'.htaccess',Path('/home/h/help24pw/.htaccess')]
+          for n,p in enumerate(paths):
+              if not p.is_file():
+                  print('ACCESS_RULE_FILE',n,'ABSENT');continue
+              b=p.read_bytes();s=b.decode('utf-8','replace')
+              lines=[l for l in s.splitlines() if l.strip() and not l.lstrip().startswith('#')]
+              categories={
+                  'ip_access_rule':r'(?i)(?:deny\s+from|allow\s+from|require\s+(?:not\s+)?ip|REMOTE_ADDR)',
+                  'geo_or_vpn_rule':r'(?i)(?:GEOIP|COUNTRY_CODE|vpn|proxy|ASN)',
+                  'request_forbid_rule':r'(?i)RewriteRule.*\[[^\]]*F(?:,|\])',
+                  'legacy_access_order':r'(?i)^\s*Order\s',
+                  'auth_rule':r'(?i)^\s*Auth(?:Type|Name|UserFile|GroupFile)\b'}
+              print('ACCESS_RULE_FILE',n,json.dumps({'sha256':hashlib.sha256(b).hexdigest(),'indicators':{k:sum(bool(re.search(v,l)) for l in lines) for k,v in categories.items()}}))
+          print('READ_ONLY: no private CRM file read, no rule changes; hosting upstream firewall not visible here.')
+          PY
