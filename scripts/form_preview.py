@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Local-only form preview. Not a lead receiver and never claims CRM delivery.
-Deliberately a role=form container with no HTML form/action or named input fields,
-so even with JavaScript disabled Enter cannot submit contacts in a URL.
+"""Local-only form preview; no network, policy publication or CRM activation.
+A role=form container avoids default GET submission even without JavaScript.
 """
 import re
 
@@ -10,7 +9,7 @@ FORM = '''<div class="form" id="bkm-mail-contact" data-bkm-form-preview="2026103
 <p class="bkm-preview-banner"><strong>Тестовая форма.</strong> Данные остаются в этой вкладке и не отправляются в БКМ или Bitrix24. Для проверки используйте вымышленные данные.</p>
 <div class="fields">
 <label class="field">Имя *<input id="bkm-preview-name" data-field="name" required minlength="2" maxlength="120" autocomplete="off" placeholder="Как к вам обращаться"></label>
-<label class="field">Телефон *<input id="bkm-preview-phone" data-field="phone" required type="tel" minlength="7" maxlength="36" pattern="[+0-9 ()\\-]{7,36}" autocomplete="off" placeholder="Контактный телефон"></label>
+<label class="field">Телефон *<input id="bkm-preview-phone" data-field="phone" required type="tel" minlength="7" maxlength="36" autocomplete="off" placeholder="Контактный телефон"></label>
 <label class="field">Компания<input data-field="company" maxlength="160" autocomplete="off" placeholder="Название организации"></label>
 <label class="field">Email<input data-field="email" type="email" maxlength="160" autocomplete="off" placeholder="Электронная почта"></label>
 <label class="field full">Услуга *<select data-field="service" required><option value="">Выберите направление</option><option>Международные перевозки</option><option>Таможенное оформление</option><option>Экспедирование</option><option>Логистика и склад</option><option>Сборные грузы</option><option>Финансовое сопровождение</option><option>Другое</option></select></label>
@@ -47,10 +46,11 @@ const box=document.querySelector('[data-bkm-form-preview]');if(!box)return;
 const status=document.getElementById('bkm-preview-status');
 const fields=Array.from(box.querySelectorAll('[data-field]'));
 const say=function(text){status.textContent=text;};
+box.addEventListener('input',function(){say('Данные изменены. Это только тест, не отправка заявки.');});
 box.querySelector('[data-preview="check"]').addEventListener('click',function(){
-for(const field of fields){if(!field.reportValidity())return;}
+for(const field of fields){if(!field.reportValidity()){say('Проверьте обязательные поля и формат данных. Ничего не отправлено.');return;}}
 const phone=box.querySelector('[data-field="phone"]');
-if(phone.value.replace(/\\D/g,'').length<7){say('Укажите не менее семи цифр телефона. Ничего не отправлено.');phone.focus();return;}
+if(!/^[+0-9 ()-]{7,36}$/.test(phone.value)||phone.value.replace(/\\D/g,'').length<7){say('Проверьте телефон: нужно не менее семи цифр. Ничего не отправлено.');phone.focus();return;}
 say('Поля заполнены корректно. Это только тест: заявка не отправлена, лид в Bitrix24 не создан.');
 });
 box.querySelector('[data-preview="example"]').addEventListener('click',function(){
@@ -63,21 +63,17 @@ box.querySelector('[data-preview="clear"]').addEventListener('click',function(){
 </script>'''
 
 def replace_preview(text):
-    if 'data-bkm-form-preview="20261030"' in text:
-        return text
+    if 'data-bkm-form-preview="20261030"' in text:return text
     match=re.search(r'<div\s+class="form"\s+id="bkm-mail-contact"[^>]*>.*?</div>',text,re.S|re.I)
-    if not match:
-        raise ValueError('Expected inactive mail-contact placeholder missing; do not replace an active form')
-    if re.search(r'<form\b',text,re.I):
-        raise ValueError('Active HTML form present; explicit review needed')
+    if not match:raise ValueError('Expected inactive mail-contact placeholder missing; do not replace an active form')
+    if re.search(r'<form\b',text,re.I):raise ValueError('Active HTML form present; explicit review needed')
     out=text[:match.start()]+FORM+text[match.end():]
     out,n=re.subn(r'</head\s*>',lambda _:STYLE+'\n</head>',out,count=1,flags=re.I)
     if n!=1:raise ValueError('Head missing')
     out,n=re.subn(r'</body\s*>',lambda _:SCRIPT+'\n</body>',out,count=1,flags=re.I)
     if n!=1:raise ValueError('Body missing')
     for block in ('header','footer'):
-        if re.findall(r'<'+block+r'\b.*?</'+block+'>',text,re.S|re.I)!=re.findall(r'<'+block+r'\b.*?</'+block+'>',out,re.S|re.I):
-            raise ValueError(block+' unexpectedly modified')
+        if re.findall(r'<'+block+r'\b.*?</'+block+'>',text,re.S|re.I)!=re.findall(r'<'+block+r'\b.*?</'+block+'>',out,re.S|re.I):raise ValueError(block+' unexpectedly modified')
     assert not re.search(r'<form\b',out,re.I)
     return out
 
