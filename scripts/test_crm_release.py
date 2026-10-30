@@ -13,7 +13,7 @@ PAGES = [
     "warehousing-logistics.html", "consolidated-cargo.html", "news.html"
 ]
 INDEX = """<!doctype html><html lang="ru"><head><meta name="robots" content="noindex,nofollow"></head>
-<body><form class="form" id="bkm-lead-form"><a href="privacy.html">Privacy</a>
+<body><form class="form" id="bkm-lead-form"><label class="field full bkm-consent"><span><input name="consent" required><a href="privacy.html">Privacy</a></span></label>
 <input name="name"></form><script src="assets/lead-form.js" defer></script></body></html>"""
 OTHER = '<!doctype html><html lang="ru"><head><meta name="robots" content="noindex,nofollow"></head><body></body></html>'
 APPROVED = ('<!doctype html><html lang="ru"><head>'
@@ -65,9 +65,17 @@ def main():
 
         (root / "approved" / "privacy.html").write_text(APPROVED, encoding="utf-8")
         result = run(root, "on")
+        assert result.returncode != 0 and "approved/consent.html is missing" in (result.stderr+result.stdout)
+        (root / "approved" / "consent.html").write_text(
+            '<!doctype html><html><head><meta name="bkm-consent-version" content="test-v1"></head><body>Consent test</body></html>',
+            encoding="utf-8")
+
+        result = run(root, "on")
         assert result.returncode == 0, result.stderr or result.stdout
         assert (dest / "api" / "lead.php").is_file()
         assert (dest / "privacy.html").is_file()
+        assert (dest / "consent.html").is_file()
+        assert 'href="consent.html"' in (dest / "index.html").read_text()
         assert 'formsEnabled: true' in (dest / "assets" / "site-config.js").read_text()
         assert '<form class="form" id="bkm-lead-form">' in (dest / "index.html").read_text()
         assert 'href="privacy.html"' in (dest / "index.html").read_text()
