@@ -125,8 +125,34 @@ if CRM_RELEASE == "on":
                            lambda _: consent_label, idx_html, count=1, flags=re.S | re.I)
     if n != 1:
         raise SystemExit("CRM release blocked: consent checkbox not found")
-    idx_html = idx_html.replace('<option>Другое</option>',
-                                '<option>Финансовое сопровождение</option><option>Другое</option>')
+    if '<option>Финансовое сопровождение</option>' not in idx_html:
+        idx_html = idx_html.replace(
+            '<option>Другое</option>',
+            '<option>Финансовое сопровождение</option><option>Другое</option>'
+        )
+    if 'href="consent.html"' not in idx_html or 'href="privacy.html"' not in idx_html:
+        raise SystemExit("CRM release blocked: separate legal links missing in form")
+    # Link both documents from the footer as well as the consent checkbox.
+    legal_links = (
+        '<div class="bkm-legal-links" style="display:flex;gap:14px;flex-wrap:wrap;'
+        'font-size:13px;padding:14px 0">'
+        '<a href="privacy.html">Политика обработки персональных данных</a>'
+        '<a href="consent.html">Согласие на обработку персональных данных</a>'
+        '</div>'
+    )
+    if 'class="bkm-legal-links"' not in idx_html:
+        if '</footer>' not in idx_html:
+            raise SystemExit("CRM release blocked: footer missing")
+        idx_html = idx_html.replace('</footer>', legal_links + '</footer>', 1)
+    # Keep existing site/brand and human-readable form rather than preview strings.
+    idx_html = idx_html.replace(
+        'На этапе тестирования автоматическая отправка в CRM выключена. '
+        'Для отправки обращения откроется ваша почтовая программа.',
+        'Отправка заявки происходит через защищённое соединение.'
+    )
+    idx_html = idx_html.replace(
+        'Подготовить письмо по заявке', 'Отправить заявку в БКМ'
+    )
     idx.write_text(idx_html, encoding="utf-8")
     (DEST / "api").mkdir(exist_ok=True)
     shutil.copy2(ROOT / "api" / "lead.php", DEST / "api" / "lead.php")
