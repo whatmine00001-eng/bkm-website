@@ -14,7 +14,7 @@ PAGES = [
 ]
 INDEX = """<!doctype html><html lang="ru"><head><meta name="robots" content="noindex,nofollow"></head>
 <body><form class="form" id="bkm-lead-form"><label class="field full bkm-consent"><span><input name="consent" required><a href="privacy.html">Privacy</a></span></label>
-<input name="name"></form><script src="assets/lead-form.js" defer></script></body></html>"""
+<input name="name"></form><footer class="footer"><p>BKM</p></footer><script src="assets/lead-form.js" defer></script></body></html>"""
 OTHER = '<!doctype html><html lang="ru"><head><meta name="robots" content="noindex,nofollow"></head><body></body></html>'
 APPROVED = ('<!doctype html><html lang="ru"><head>'
             '<meta name="bkm-policy-status" content="approved"></head>'
@@ -80,6 +80,7 @@ def main():
         assert (dest / "consent.html").is_file()
         assert (dest / "consent.html").is_file()
         assert 'href="consent.html"' in (dest / "index.html").read_text()
+        assert (dest / "index.html").read_text().count('class="bkm-legal-links"') == 1
         assert 'formsEnabled: true' in (dest / "assets" / "site-config.js").read_text()
         assert '<form class="form" id="bkm-lead-form">' in (dest / "index.html").read_text()
         assert 'href="privacy.html"' in (dest / "index.html").read_text()
