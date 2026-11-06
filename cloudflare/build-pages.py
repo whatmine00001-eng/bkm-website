@@ -69,7 +69,8 @@ for path in paths:
             links=('<nav class="bkm-cloudflare-legal" aria-label="Документы о персональных данных" '
                    'style="display:flex;gap:18px;flex-wrap:wrap;padding:12px 5%;font-size:13px">'
                    '<a href="/privacy.html">Политика обработки персональных данных</a>'
-                   '<a href="/consent.html">Согласие на обработку персональных данных</a></nav>')
+                   '<a href="/consent.html">Согласие на обработку персональных данных</a>'
+                   '<a href="/lite.html">Облегчённая версия сайта</a></nav>')
             s=s.replace('</footer>',links+'</footer>',1)
     # No pages.dev version should accidentally enter a search index.
     s=re.sub(r'<meta\s+name=["\']robots["\']\s+content=["\'][^"\']*["\']\s*/?>',
