@@ -49,7 +49,7 @@ test("valid synthetic lead is sent to Bitrix24 after Turnstile and assigned to I
   const old=globalThis.fetch;let calls=[];
   globalThis.fetch=async(url,options)=>{
     calls.push({url:String(url),options});
-    if(String(url).includes("siteverify"))return new Response('{"success":true}',{status:200});
+    if(String(url).includes("siteverify"))return new Response('{"success":true,"hostname":"24bkm.com"}',{status:200});
     if(String(url).endsWith("crm.lead.add.json")){
       let payload=JSON.parse(options.body);
       assert.equal(payload.fields.ASSIGNED_BY_ID,7);
@@ -81,4 +81,32 @@ test("failed CRM response never claims a confirmed lead",async()=>{
 });
 test("GET is not a submit",async()=>{
   assert.equal((await api.onRequestGet()).status,405);
+});
+
+test("Turnstile token issued for another hostname is rejected",async()=>{
+  const old=globalThis.fetch;
+  let crmCalls=0;
+  globalThis.fetch=async url=>{
+    if(String(url).includes("siteverify"))
+      return new Response('{"success":true,"hostname":"other-site.test"}',{status:200});
+    crmCalls++;throw Error("CRM must not be called");
+  };
+  try {
+    const result=await api.onRequestPost({request:request(),env});
+    assert.equal(result.status,422);
+    assert.equal((await result.json()).code,"verification_required");
+    assert.equal(crmCalls,0);
+  }finally{globalThis.fetch=old;}
+});
+test("one explicitly configured pages.dev host is accepted for staging test only",async()=>{
+  const req=request(data,{}, "https://bkm-website.pages.dev/api/lead");
+  const original=globalThis.fetch;
+  globalThis.fetch=async url=>String(url).includes("siteverify")
+    ? new Response('{"success":true,"hostname":"bkm-website.pages.dev"}',{status:200})
+    : new Response('{"result":777}',{status:200});
+  try {
+    const r=await api.onRequestPost({request:req,env:{...env,BKM_PREVIEW_HOST:"bkm-website.pages.dev"}});
+    assert.equal(r.status,200);
+    assert.equal((await r.json()).lead_id,777);
+  }finally{globalThis.fetch=original;}
 });
