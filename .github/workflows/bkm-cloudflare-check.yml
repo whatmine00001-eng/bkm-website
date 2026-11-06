@@ -31,7 +31,7 @@ jobs:
           test ! -e dist/index.php
           grep -q 'formsEnabled: false' dist/assets/site-config.js
           grep -q 'analyticsEnabled: false' dist/assets/site-config.js
-          grep -q 'noindex' dist/robots.txt
+          grep -q 'Disallow: /' dist/robots.txt
           grep -q 'class="bkm-cloudflare-legal"' dist/index.html
           if grep -q 'id="bkm-lead-form"' dist/index.html; then echo "Contact data form must be disabled"; exit 1; fi
           if BKM_PAGES_MODE=active python3 cloudflare/build-pages.py > /tmp/bkm_active_check 2>&1; then
