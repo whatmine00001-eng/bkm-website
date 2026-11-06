@@ -26,6 +26,10 @@ jobs:
           python3 -m py_compile cloudflare/build-pages.py
           BKM_PAGES_MODE=review_only python3 cloudflare/build-pages.py
           test -s dist/index.html && test -s dist/privacy.html && test -s dist/consent.html
+          test -s dist/lite.html
+          test "$(wc -c < dist/lite.html)" -lt 10000
+          ! grep -q 'https://fonts.googleapis.com' dist/lite.html
+          ! grep -q 'https://images.unsplash.com' dist/lite.html
           test -s dist/assets/bkm-header.svg
           test ! -e dist/api/lead.php
           test ! -e dist/index.php
