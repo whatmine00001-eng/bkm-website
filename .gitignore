@@ -18,3 +18,8 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 Thumbs.db
+
+# Cloudflare Pages generated output and development-only secrets
+/dist/
+/.dev.vars*
+/.wrangler/
