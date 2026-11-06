@@ -117,14 +117,17 @@ export async function onRequestPost({request,env}) {
       redirect:"error"
     });
     if(!crm.ok) return reply(502,"crm_unavailable");
-    const result=await crm.json();
+    let result;
+    try { result=await crm.json(); }
+    catch { return reply(502,"crm_response_not_json"); }
     const id=Number(result?.result);
     if(result?.error || !Number.isSafeInteger(id) || id<=0)
       return reply(502,"crm_invalid_response");
     return reply(200,"lead_created",{lead_id:id});
-  } catch {
+  } catch (error) {
     // Never auto-retry: a timed-out request may have created a CRM lead.
-    return reply(502,"crm_unconfirmed");
+    return reply(502,["TimeoutError","AbortError"].includes(error?.name)
+      ? "crm_timeout" : "crm_connection_failed");
   }
 }
 export async function onRequestGet(){return reply(405,"method_not_allowed");}
