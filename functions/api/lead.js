@@ -1,6 +1,6 @@
 // Cloudflare Pages Function: POST /api/lead
 // All secrets are Cloudflare encrypted bindings. Never commit a webhook.
-// Strictly disabled until legal/data-residency review and approved release.
+// Production can submit only when owner-enabled Cloudflare runtime bindings are configured.
 const ALLOWED_HOSTS = new Set(["24bkm.com", "www.24bkm.com"]);
 const SERVICES = new Set([
   "Международные перевозки", "Таможенное оформление", "Экспедирование",
@@ -32,7 +32,7 @@ function webhookEndpoint(secret) {
     return parsed.href.replace(/\/$/,"")+"/crm.lead.add.json";
   } catch { return null; }
 }
-async function verifyTurnstile(token, secret, ip, fetcher) {
+async function verifyTurnstile(token, secret, ip, expectedHost, fetcher) {
   if(!token || !secret || token.length>2500) return false;
   const body=new URLSearchParams({secret,response:token});
   if(ip) body.set("remoteip",ip);
@@ -43,7 +43,7 @@ async function verifyTurnstile(token, secret, ip, fetcher) {
     });
     if(!result.ok) return false;
     const json=await result.json();
-    return json.success===true;
+    return json.success===true && json.hostname===expectedHost;
   } catch { return false; }
 }
 export async function onRequestPost({request,env}) {
@@ -51,7 +51,9 @@ export async function onRequestPost({request,env}) {
   if(env.BKM_CRM_ENABLED!=="true" || env.BKM_LEGAL_APPROVED!=="true")
     return reply(503,"not_enabled");
   const url=new URL(request.url);
-  if(!ALLOWED_HOSTS.has(url.hostname) || url.protocol!=="https:")
+  const previewHost=typeof env.BKM_PREVIEW_HOST==="string" ? env.BKM_PREVIEW_HOST : "";
+  const approvedPreview=/^[a-z0-9-]+\.pages\.dev$/.test(previewHost) && url.hostname===previewHost;
+  if((!ALLOWED_HOSTS.has(url.hostname) && !approvedPreview) || url.protocol!=="https:")
     return reply(403,"host_rejected");
   if(request.headers.get("origin")!==url.origin)
     return reply(403,"origin_rejected");
@@ -80,7 +82,7 @@ export async function onRequestPost({request,env}) {
   const ip=request.headers.get("cf-connecting-ip") || "";
   const fetcher=globalThis.fetch;
   if(!await verifyTurnstile(field(data,"turnstile_token",2500),
-                            env.BKM_TURNSTILE_SECRET,ip,fetcher))
+                            env.BKM_TURNSTILE_SECRET,ip,url.hostname,fetcher))
     return reply(422,"verification_required");
   const comments=[
     "Услуга: "+service,
