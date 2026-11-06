@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build BKM Cloudflare Pages in review_only or approved active CRM mode.
 
-The owner approved the supplied policy and consent. The active build includes a
-Turnstile-protected form and nonsecret config; private webhook and Turnstile
-secrets are runtime-only Cloudflare bindings. The Pages /functions directory
+The owner approved the supplied policy and consent. The default Pages build
+ships a disabled-until-ready form; the public site key is served at runtime only
+after private webhook and Turnstile configuration has passed checks.
+Secret values remain in Cloudflare encrypted runtime bindings. The Pages /functions directory
 is outside static output and is deployed automatically by Pages Git integration.
 """
 from pathlib import Path
@@ -15,7 +16,7 @@ import shutil
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"dist"
 LEGAL=ROOT/"cloudflare"/"legal"
-MODE=os.environ.get("BKM_PAGES_MODE","review_only")
+MODE=os.environ.get("BKM_PAGES_MODE","active")
 if MODE not in {"review_only","active"}:
     raise SystemExit("Invalid BKM_PAGES_MODE")
 if MODE=="active":
@@ -26,8 +27,6 @@ if MODE=="active":
         if ('name="bkm-policy-status" content="approved"' not in legal
             or 'name="bkm-policy-review" content="pending"' in legal):
             raise SystemExit("CRM release blocked: legal review not approved for "+filename)
-    if not re.fullmatch(r'[A-Za-z0-9_-]{8,100}',os.environ.get("BKM_TURNSTILE_SITE_KEY","")):
-        raise SystemExit("CRM release blocked: Cloudflare Turnstile site key required")
 if OUT.exists():
     shutil.rmtree(OUT)
 OUT.mkdir()
@@ -59,12 +58,13 @@ for path in paths:
             s=s.replace('На этапе тестирования автоматическая отправка в CRM выключена. '
                         'Для отправки обращения откроется ваша почтовая программа.',
                         'Отправка заявки по защищённому соединению в БКМ.')
-            # Use only a public site key, never expose the Turnstile secret.
-            key=os.environ["BKM_TURNSTILE_SITE_KEY"]
-            widget=f'<div class="cf-turnstile" data-sitekey="{key}"></div>'
+            # Keep credentials and public Turnstile sitekey out of build-time variables.
+            # A server-only readiness endpoint supplies the public sitekey at runtime.
+            widget='<div id="bkm-turnstile" role="group" aria-label="Проверка безопасности"></div>'
             s=s.replace('<div class="form__actions">',widget+'<div class="form__actions">',1)
-            s=s.replace('</body>','<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script></body>',1)
             s=s.replace('Подготовить письмо по заявке','Отправить заявку в БКМ')
+            s=s.replace('<button class="btn" type="submit">','<button class="btn" type="submit" disabled>',1)
+            s=s.replace('</body>','<script src="assets/turnstile-setup.js" defer></script></body>',1)
         if 'class="bkm-cloudflare-legal"' not in s:
             links=('<nav class="bkm-cloudflare-legal" aria-label="Документы о персональных данных" '
                    'style="display:flex;gap:18px;flex-wrap:wrap;padding:12px 5%;font-size:13px">'
@@ -87,6 +87,10 @@ shutil.copytree(ROOT/"assets",OUT/"assets",
             {".css",".svg",".js",".png",".jpg",".jpeg",".webp"}
         )
     ])
+if MODE=="active":
+    # Dynamic nonsecret Turnstile bootstrap; shared Beget source is untouched.
+    shutil.copy2(ROOT/"cloudflare"/"turnstile-setup.js",
+                 OUT/"assets"/"turnstile-setup.js")
 config=OUT/"assets"/"site-config.js"
 src=config.read_text(encoding="utf-8")
 if src.count("formsEnabled: false")!=1 or src.count("analyticsEnabled: false")!=1:
@@ -104,6 +108,11 @@ if MODE=="active":
         text=text.replace('consent: data.get("consent") === "on",',
             'consent: data.get("consent") === "on",\n'
             '      turnstile_token: String(data.get("cf-turnstile-response") || ""),',1)
+    text=text.replace(
+        'form.reset();',
+        'form.reset(); if (typeof window.BKMResetTurnstile === "function") window.BKMResetTurnstile();',
+        1
+    )
     js.write_text(text,encoding="utf-8")
 (OUT/"_headers").write_text(
     "/*\n  X-Robots-Tag: noindex, nofollow\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n",
