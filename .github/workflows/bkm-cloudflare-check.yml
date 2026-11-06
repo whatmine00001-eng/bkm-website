@@ -1,4 +1,4 @@
-name: BKM Cloudflare Pages - Safe Build and CRM Contract
+name: BKM Cloudflare Pages - Live Form and Bitrix24 Contract
 on:
   push:
     branches: [cloudflare/pages-v1]
@@ -8,6 +8,7 @@ on:
       - 'assets/**'
       - 'index.html'
       - '*.html'
+      - 'wrangler.jsonc'
       - '.github/workflows/bkm-cloudflare-check.yml'
   pull_request:
     paths:
@@ -20,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Python code and build inert Pages preview
+      - name: Validate both preview and runtime-gated live Pages builds
         run: |
           set -euo pipefail
           python3 -m py_compile cloudflare/build-pages.py
@@ -38,22 +39,26 @@ jobs:
           grep -q 'Disallow: /' dist/robots.txt
           grep -q 'class="bkm-cloudflare-legal"' dist/index.html
           if grep -q 'id="bkm-lead-form"' dist/index.html; then echo "Contact data form must be disabled"; exit 1; fi
-          BKM_PAGES_MODE=active BKM_TURNSTILE_SITE_KEY=TEST_ONLY_PUBLIC_SITE_KEY_1234 python3 cloudflare/build-pages.py
+          BKM_PAGES_MODE=active python3 cloudflare/build-pages.py
           test -s dist/index.html && test -s dist/privacy.html && test -s dist/consent.html
           grep -q 'formsEnabled: true' dist/assets/site-config.js
           grep -q 'analyticsEnabled: false' dist/assets/site-config.js
           grep -q 'id="bkm-lead-form"' dist/index.html
-          grep -q 'class="cf-turnstile"' dist/index.html
+          grep -q 'id="bkm-turnstile"' dist/index.html
+          grep -q 'type="submit" disabled' dist/index.html
+          test -s dist/assets/turnstile-setup.js
+          grep -q '"/api/form-config"' dist/assets/turnstile-setup.js
           grep -q 'turnstile_token:' dist/assets/lead-form.js
           grep -q '"/api/lead"' dist/assets/lead-form.js
           ! grep -q '"/api/lead.php"' dist/assets/lead-form.js
           test ! -e dist/api/lead.php
-          # Ensure the final preview artifact stays noncollecting unless
-          # the actual Cloudflare project specifies active mode and a site key.
-          BKM_PAGES_MODE=review_only python3 cloudflare/build-pages.py
-          grep -q 'formsEnabled: false' dist/assets/site-config.js
+          # Default Pages build is active but form is disabled in HTML until
+          # the server confirms Bitrix24 and Turnstile secrets are configured.
+          python3 cloudflare/build-pages.py
+          grep -q 'formsEnabled: true' dist/assets/site-config.js
+          grep -q 'type="submit" disabled' dist/index.html
       - name: Verify Pages Function security and Bitrix contract with synthetic data
-        run: node --test cloudflare/test-lead.mjs
+        run: node --test cloudflare/test-lead.mjs cloudflare/test-form-config.mjs
       - name: Confirm no private keys and Beget PHP in static output
         run: |
           set -euo pipefail
@@ -62,4 +67,4 @@ jobs:
           test ! -e dist/.env
           test ! -e dist/.dev.vars
           test -s functions/api/lead.js
-          echo 'BKM_CLOUDFLARE_PREVIEW_SAFE_PASS'
+          echo 'BKM_CLOUDFLARE_LIVE_FORM_TEST_PASS'
