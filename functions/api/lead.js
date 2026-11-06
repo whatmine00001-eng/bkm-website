@@ -48,7 +48,9 @@ async function verifyTurnstile(token, secret, ip, expectedHost, fetcher) {
 }
 export async function onRequestPost({request,env}) {
   // Fail closed: a published preview must never start collecting contact data.
-  if(env.BKM_CRM_ENABLED!=="true" || env.BKM_LEGAL_APPROVED!=="true")
+  // Owner approved the uploaded legal texts. One runtime deployment switch
+  // prevents partial activation before Cloudflare secrets are configured.
+  if(env.BKM_CRM_ENABLED!=="true")
     return reply(503,"not_enabled");
   const url=new URL(request.url);
   const previewHost=typeof env.BKM_PREVIEW_HOST==="string" ? env.BKM_PREVIEW_HOST : "";
