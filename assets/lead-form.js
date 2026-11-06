@@ -86,7 +86,7 @@
       const diagnosticCodes = ["lead_created", "not_enabled", "server_not_configured",
         "host_rejected", "origin_rejected", "json_required", "invalid_payload_size",
         "invalid_json", "accepted", "consent_required", "invalid_fields",
-        "verification_required", "crm_unavailable", "crm_invalid_response", "crm_unconfirmed"];
+        "verification_required", "crm_unavailable", "crm_invalid_response", "crm_unconfirmed", "crm_response_not_json", "crm_timeout", "crm_connection_failed"];
       if (status) {
         status.dataset.responseCode = diagnosticCodes.includes(result.code) ? result.code : "unknown";
         status.dataset.httpStatus = String(response.status);
