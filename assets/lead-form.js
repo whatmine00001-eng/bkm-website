@@ -82,6 +82,15 @@
         body: JSON.stringify(payload), cache: "no-store", signal: controller.signal
       });
       const result = await response.json();
+      // Retain only documented, non-sensitive status codes for support diagnostics.
+      const diagnosticCodes = ["lead_created", "not_enabled", "server_not_configured",
+        "host_rejected", "origin_rejected", "json_required", "invalid_payload_size",
+        "invalid_json", "accepted", "consent_required", "invalid_fields",
+        "verification_required", "crm_unavailable", "crm_invalid_response", "crm_unconfirmed"];
+      if (status) {
+        status.dataset.responseCode = diagnosticCodes.includes(result.code) ? result.code : "unknown";
+        status.dataset.httpStatus = String(response.status);
+      }
       if (!response.ok || result.ok !== true ||
           result.code !== "lead_created") {
         throw new Error("submission_not_confirmed");
