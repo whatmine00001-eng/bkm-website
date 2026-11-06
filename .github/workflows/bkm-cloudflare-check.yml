@@ -34,10 +34,20 @@ jobs:
           grep -q 'Disallow: /' dist/robots.txt
           grep -q 'class="bkm-cloudflare-legal"' dist/index.html
           if grep -q 'id="bkm-lead-form"' dist/index.html; then echo "Contact data form must be disabled"; exit 1; fi
-          if BKM_PAGES_MODE=active python3 cloudflare/build-pages.py > /tmp/bkm_active_check 2>&1; then
-            echo "Active CRM build must reject unresolved legal review"; exit 1
-          fi
-          grep -q 'legal review not approved' /tmp/bkm_active_check
+          BKM_PAGES_MODE=active BKM_TURNSTILE_SITE_KEY=TEST_ONLY_PUBLIC_SITE_KEY_1234 python3 cloudflare/build-pages.py
+          test -s dist/index.html && test -s dist/privacy.html && test -s dist/consent.html
+          grep -q 'formsEnabled: true' dist/assets/site-config.js
+          grep -q 'analyticsEnabled: false' dist/assets/site-config.js
+          grep -q 'id="bkm-lead-form"' dist/index.html
+          grep -q 'class="cf-turnstile"' dist/index.html
+          grep -q 'turnstile_token:' dist/assets/lead-form.js
+          grep -q '"/api/lead"' dist/assets/lead-form.js
+          ! grep -q '"/api/lead.php"' dist/assets/lead-form.js
+          test ! -e dist/api/lead.php
+          # Ensure the final preview artifact stays noncollecting unless
+          # the actual Cloudflare project specifies active mode and a site key.
+          BKM_PAGES_MODE=review_only python3 cloudflare/build-pages.py
+          grep -q 'formsEnabled: false' dist/assets/site-config.js
       - name: Verify Pages Function security and Bitrix contract with synthetic data
         run: node --test cloudflare/test-lead.mjs
       - name: Confirm no private keys and Beget PHP in static output
