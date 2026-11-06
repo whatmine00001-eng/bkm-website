@@ -1,0 +1,51 @@
+name: BKM Cloudflare Pages - Safe Build and CRM Contract
+on:
+  push:
+    branches: [cloudflare/pages-v1]
+    paths:
+      - 'cloudflare/**'
+      - 'functions/**'
+      - 'assets/**'
+      - 'index.html'
+      - '*.html'
+      - '.github/workflows/bkm-cloudflare-check.yml'
+  pull_request:
+    paths:
+      - 'cloudflare/**'
+      - 'functions/**'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python code and build inert Pages preview
+        run: |
+          set -euo pipefail
+          python3 -m py_compile cloudflare/build-pages.py
+          BKM_PAGES_MODE=review_only python3 cloudflare/build-pages.py
+          test -s dist/index.html && test -s dist/privacy.html && test -s dist/consent.html
+          test -s dist/assets/bkm-header.svg
+          test ! -e dist/api/lead.php
+          test ! -e dist/index.php
+          grep -q 'formsEnabled: false' dist/assets/site-config.js
+          grep -q 'analyticsEnabled: false' dist/assets/site-config.js
+          grep -q 'noindex' dist/robots.txt
+          grep -q 'class="bkm-cloudflare-legal"' dist/index.html
+          if grep -q 'id="bkm-lead-form"' dist/index.html; then echo "Contact data form must be disabled"; exit 1; fi
+          if BKM_PAGES_MODE=active python3 cloudflare/build-pages.py > /tmp/bkm_active_check 2>&1; then
+            echo "Active CRM build must reject unresolved legal review"; exit 1
+          fi
+          grep -q 'legal review not approved' /tmp/bkm_active_check
+      - name: Verify Pages Function security and Bitrix contract with synthetic data
+        run: node --test cloudflare/test-lead.mjs
+      - name: Confirm no private keys and Beget PHP in static output
+        run: |
+          set -euo pipefail
+          test ! -e dist/api/lead.php
+          test ! -e dist/config.php
+          test ! -e dist/.env
+          test ! -e dist/.dev.vars
+          test -s functions/api/lead.js
+          echo 'BKM_CLOUDFLARE_PREVIEW_SAFE_PASS'
