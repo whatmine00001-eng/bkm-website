@@ -71,7 +71,7 @@ test("valid synthetic lead is sent to Bitrix24 after Turnstile and assigned to I
 test("failed CRM response never claims a confirmed lead",async()=>{
   const old=globalThis.fetch;
   globalThis.fetch=async url=>String(url).includes("siteverify")
-    ? new Response('{"success":true}',{status:200})
+    ? new Response('{"success":true,"hostname":"24bkm.com"}',{status:200})
     : new Response('{"error":"FORBIDDEN"}',{status:200});
   try{
     const res=await api.onRequestPost({request:request(),env});
