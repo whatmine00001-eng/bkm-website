@@ -1,6 +1,6 @@
 # БКМ — Cloudflare Pages + Bitrix24
 
-**Состояние на 6 ноября 2026:** техническая интеграция сайта с Bitrix24 реализована в ветке `cloudflare/pages-v1` и проходит GitHub Actions. Пользователь **явно подтвердил утверждение** двух загруженных юридических документов. Публикация в аккаунте Cloudflare и живой лид через новую площадку ещё не выполнены: Cloudflare не подключён к этому чату/репозиторию, а секреты Cloudflare здесь недоступны.
+**Состояние на 6 ноября 2026:** техническая интеграция сайта с Bitrix24 реализована в ветке `cloudflare/pages-v1` и проходит GitHub Actions. Пользователь **явно подтвердил утверждение** двух загруженных юридических документов. Cloudflare Pages уже создан пользователем и первоначально успешно опубликован по адресу https://bkm-website-7kj.pages.dev/ (подтверждено скриншотом). Более поздние автоматические деплои не проверены в его Cloudflare Dashboard. Живой лид через новую площадку ещё не подтверждён: секреты Cloudflare здесь недоступны.
 
 ## Что уже готово
 
@@ -19,11 +19,10 @@
 
 В панели https://dash.cloudflare.com/:
 
-1. **Workers & Pages → Create application → Pages → Connect to Git**.
-2. Авторизовать GitHub, выбрать только репозиторий `whatmine00001-eng/bkm-website`.
-3. Production branch: `cloudflare/pages-v1`.
-4. Framework preset: **None**; build command: `python3 cloudflare/build-pages.py`; output directory: `dist`; root directory — корень репозитория.
-5. Для первого просмотра можно сохранить `BKM_PAGES_MODE=review_only`. Для рабочей формы установить **Build environment variables**:
+1. Проект **уже создан** пользователем в Cloudflare как `bkm-website-7kj.pages.dev` и привязан к GitHub `whatmine00001-eng/bkm-website`, ветка `cloudflare/pages-v1`.
+2. Для настройки рабочей формы зайти в **Workers & Pages → bkm-website → Settings → Variables and Secrets**.
+3. Настройки сборки: Framework preset **None**; build command `python3 cloudflare/build-pages.py`; output directory `dist`.
+4. Для первого просмотра можно сохранить `BKM_PAGES_MODE=review_only`. Для рабочей формы установить **Build environment variables**:
    - `BKM_PAGES_MODE=active`
    - `BKM_TURNSTILE_SITE_KEY=<публичный site key созданного Turnstile widget>`
 6. Создать widget Turnstile для реального домена `24bkm.com`, `www.24bkm.com`; для тестирования на `*.pages.dev` добавить точный домен сайта в настройки Turnstile.
@@ -32,10 +31,10 @@
    - `BKM_CONSENT_VERSION=bkm-consent-uploaded-2026-11-06-v1` (обычная переменная);
    - `BKM_BITRIX_WEBHOOK_URL` = действующий входящий webhook Bitrix24 `https://bitrix.24bkm.com/rest/ID/SECRET/` (**encrypted secret**);
    - `BKM_TURNSTILE_SECRET` = секретный ключ Turnstile (**encrypted secret**).
-   - Для тестирования формы на `*.pages.dev` также `BKM_PREVIEW_HOST=<точный_проект>.pages.dev` (обычная переменная). В отсутствие переменной обработчик принимает только `24bkm.com` и `www.24bkm.com`.
+   - Домен `bkm-website-7kj.pages.dev` уже разрешён в серверном коде только для этой конкретной площадки; дополнительный `BKM_PREVIEW_HOST` не требуется.
 8. Запустить **Save and Deploy**. Cloudflare получит репозиторий напрямую из GitHub. После публикации прислать полученную ссылку вида `https://<проект>.pages.dev`, чтобы проверить, что Pages Function действительно задеплоен. Фактическая отправка в Bitrix24 должна быть подтверждена отдельным служебным лидом, не одними локальными тестами.
 
-**Важно:** на `pages.dev` для реального POST нужны одновременно `BKM_PREVIEW_HOST` и домен в Turnstile. Секретные URL и ключи не присылать в переписку.
+**Важно:** на `pages.dev` для реального POST нужно добавить `bkm-website-7kj.pages.dev` в список разрешённых доменов Turnstile. Секретные URL и ключи не присылать в переписку.
 
 ## Проверка перед сменой DNS 24bkm.com
 
@@ -52,3 +51,12 @@
 ## Текущая граница сделанного
 
 Реального доступа к Cloudflare-аккаунту у данного рабочего сеанса нет. Создание проекта, задание секретов, получение URL, настройка DNS и отправка реального тестового лида не выполнены. Исходники, утверждённые материалы, сборка и тесты находятся в GitHub; вебхук и ключ Turnstile остаются приватными.
+
+## Доступность в России: подготовлен резервный путь
+
+- Самостоятельная облегчённая страница `/lite.html` (менее 10 КБ без внешних скриптов, шрифтов и изображений) — может работать на медленных соединениях, но **не гарантирует доступ**, если ISP блокирует Cloudflare целиком.
+- Для публикации на хостинге в РФ GitHub Actions автоматически собирает независимый архив `BKM-24bkm-ru-host-ready` с PHP 8.2 обработчиком, последними утверждёнными политиками, формой и фирменным дизайном:
+  https://github.com/whatmine00001-eng/bkm-website/actions/workflows/bkm-russia-release.yml .
+- Для исполнения этой сборки нужен доступный российский PHP-хостинг: основной — Beget, когда он восстановится. Публикация в РФ и настройка DNS пока не выполнялись.
+- Если `24bkm.com` в дальнейшем будет опубликован напрямую с российского сервера, не проксировать его через Cloudflare без проверки российской доступности. Не затрагивать MX, SPF, DKIM, DMARC и `bitrix.24bkm.com`.
+- Cloudflare официально подтверждает ограничения доступа на стороне российских ISP: https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/service-disruption/ .
