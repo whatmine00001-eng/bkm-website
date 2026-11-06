@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * BKM lead receiver — Beget PHP 8+, same-origin POST only.
- * Secret configuration: /home/h/help24pw/.bkm_private/config.php (outside public_html).
+ * Secret configuration (outside public_html): BKM_PRIVATE_CONFIG_PATH env,
+ * defaulting to /home/h/help24pw/.bkm_private/config.php on Beget.
  * Test HTTP website must NEVER accept customer information.
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -59,7 +60,7 @@ if (!is_array($data)) {
     reply(400, 'invalid_json');
 }
 
-$configFile = '/home/h/help24pw/.bkm_private/config.php';
+$configFile = getenv('BKM_PRIVATE_CONFIG_PATH') ?: '/home/h/help24pw/.bkm_private/config.php';
 if (!is_file($configFile) || !is_readable($configFile)) {
     reply(503, 'not_configured');
 }
@@ -115,7 +116,7 @@ if (!in_array($service, [
     reply(422, 'invalid_service');
 }
 
-$rateDirectory = '/home/h/help24pw/.bkm_private/rate';
+$rateDirectory = dirname($configFile) . '/rate';
 if (!is_dir($rateDirectory) && !@mkdir($rateDirectory, 0700, true) && !is_dir($rateDirectory)) {
     reply(503, 'server_unavailable');
 }
@@ -170,7 +171,7 @@ $comments = implode("\n", [
     'Пожелания: ' . $details,
     'Страница сайта: ' . $path,
     'Согласие на обработку данных на сайте: ' . gmdate('c'),
-    'Редакция согласия: bkm-consent-2026-10-30-v1',
+    'Редакция согласия: bkm-consent-uploaded-2026-11-06-v1',
     'Политика: https://24bkm.com/privacy.html'
 ]);
 $fields = [
