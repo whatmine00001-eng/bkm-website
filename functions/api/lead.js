@@ -1,7 +1,7 @@
 // Cloudflare Pages Function: POST /api/lead
 // All secrets are Cloudflare encrypted bindings. Never commit a webhook.
 // Production can submit only when owner-enabled Cloudflare runtime bindings are configured.
-const ALLOWED_HOSTS = new Set(["24bkm.com", "www.24bkm.com"]);
+const ALLOWED_HOSTS = new Set(["24bkm.com", "www.24bkm.com", "bkm-website-7kj.pages.dev"]);
 const SERVICES = new Set([
   "Международные перевозки", "Таможенное оформление", "Экспедирование",
   "Логистика и склад", "Сборные грузы", "Финансовое сопровождение", "Другое"
@@ -53,9 +53,8 @@ export async function onRequestPost({request,env}) {
   if(env.BKM_CRM_ENABLED!=="true")
     return reply(503,"not_enabled");
   const url=new URL(request.url);
-  const previewHost=typeof env.BKM_PREVIEW_HOST==="string" ? env.BKM_PREVIEW_HOST : "";
-  const approvedPreview=/^[a-z0-9-]+\.pages\.dev$/.test(previewHost) && url.hostname===previewHost;
-  if((!ALLOWED_HOSTS.has(url.hostname) && !approvedPreview) || url.protocol!=="https:")
+  // Only the actual deployed project plus its eventual custom domains.
+  if(!ALLOWED_HOSTS.has(url.hostname) || url.protocol!=="https:")
     return reply(403,"host_rejected");
   if(request.headers.get("origin")!==url.origin)
     return reply(403,"origin_rejected");
