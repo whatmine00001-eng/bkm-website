@@ -98,15 +98,20 @@ test("Turnstile token issued for another hostname is rejected",async()=>{
     assert.equal(crmCalls,0);
   }finally{globalThis.fetch=old;}
 });
-test("one explicitly configured pages.dev host is accepted for staging test only",async()=>{
-  const req=request(data,{}, "https://bkm-website.pages.dev/api/lead");
+test("the actual BKM Pages host is accepted for staging test only",async()=>{
+  const req=request(data,{}, "https://bkm-website-7kj.pages.dev/api/lead");
   const original=globalThis.fetch;
   globalThis.fetch=async url=>String(url).includes("siteverify")
-    ? new Response('{"success":true,"hostname":"bkm-website.pages.dev"}',{status:200})
+    ? new Response('{"success":true,"hostname":"bkm-website-7kj.pages.dev"}',{status:200})
     : new Response('{"result":777}',{status:200});
   try {
-    const r=await api.onRequestPost({request:req,env:{...env,BKM_PREVIEW_HOST:"bkm-website.pages.dev"}});
+    const r=await api.onRequestPost({request:req,env});
     assert.equal(r.status,200);
     assert.equal((await r.json()).lead_id,777);
   }finally{globalThis.fetch=original;}
+});
+
+test("other pages.dev hosts remain forbidden",async()=>{
+  const res=await api.onRequestPost({request:request(data,{}, "https://other-project.pages.dev/api/lead"),env});
+  assert.equal(res.status,403);
 });
