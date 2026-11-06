@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Prepare a no-collection Cloudflare Pages preview from the existing BKM site.
+"""Build BKM Cloudflare Pages in review_only or approved active CRM mode.
 
-The preview intentionally cannot capture contact data. It does not use Beget,
-does not deploy to Cloudflare, and does not authorize a production CRM launch.
-The Pages /functions directory is outside the static build output.
+The owner approved the supplied policy and consent. The active build includes a
+Turnstile-protected form and nonsecret config; private webhook and Turnstile
+secrets are runtime-only Cloudflare bindings. The Pages /functions directory
+is outside static output and is deployed automatically by Pages Git integration.
 """
 from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
@@ -18,8 +19,8 @@ MODE=os.environ.get("BKM_PAGES_MODE","review_only")
 if MODE not in {"review_only","active"}:
     raise SystemExit("Invalid BKM_PAGES_MODE")
 if MODE=="active":
-    # Deliberately impossible with the user's as-uploaded, contradictory
-    # legal texts. Only a reviewed/reconciled, marked-approved version can launch.
+    # The owner has expressly approved both documents; require that technical
+    # approval marker without changing their substantive wording.
     for filename in ("privacy.html","consent.html"):
         legal=(LEGAL/filename).read_text(encoding="utf-8")
         if ('name="bkm-policy-status" content="approved"' not in legal
