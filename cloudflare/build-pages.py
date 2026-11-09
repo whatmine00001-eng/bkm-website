@@ -99,21 +99,13 @@ if MODE=="active":
     src=src.replace("formsEnabled: false","formsEnabled: true",1)
 config.write_text(src,encoding="utf-8")
 if MODE=="active":
-    js=OUT/"assets"/"lead-form.js"
-    text=js.read_text(encoding="utf-8")
-    if text.count('"/api/lead.php"')!=1:
-        raise SystemExit("Expected only one legacy PHP endpoint")
-    text=text.replace('"/api/lead.php"','"/api/lead"',1)
-    if 'turnstile_token:' not in text:
-        text=text.replace('consent: data.get("consent") === "on",',
-            'consent: data.get("consent") === "on",\n'
-            '      turnstile_token: String(data.get("cf-turnstile-response") || ""),',1)
-    text=text.replace(
-        'form.reset();',
-        'form.reset(); if (typeof window.BKMResetTurnstile === "function") window.BKMResetTurnstile();',
-        1
-    )
-    js.write_text(text,encoding="utf-8")
+    # Cloudflare Pages serves the same browser logic as Beget, but with
+    # a different API route. Credentials are never injected client-side.
+    if src.count('leadEndpoint: "/api/lead.php"') != 1:
+        raise SystemExit("CRM config missing explicit endpoint")
+    src = src.replace('leadEndpoint: "/api/lead.php"', 'leadEndpoint: "/api/lead"', 1)
+    config.write_text(src, encoding="utf-8")
+    assert 'turnstile_token:' in (OUT/"assets"/"lead-form.js").read_text(encoding="utf-8")
 (OUT/"_headers").write_text(
     "/*\n  X-Robots-Tag: noindex, nofollow\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n",
     encoding="utf-8")

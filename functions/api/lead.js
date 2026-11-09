@@ -2,10 +2,8 @@
 // All secrets are Cloudflare encrypted bindings. Never commit a webhook.
 // Production can submit only when owner-enabled Cloudflare runtime bindings are configured.
 const ALLOWED_HOSTS = new Set(["24bkm.com", "www.24bkm.com", "bkm-website-7kj.pages.dev"]);
-const SERVICES = new Set([
-  "Международные перевозки", "Таможенное оформление", "Экспедирование",
-  "Логистика и склад", "Сборные грузы", "Финансовое сопровождение", "Другое"
-]);
+const PHONE_RULES = {"RU":["7",10,10],"KZ":["7",10,10],"BY":["375",9,9],"CN":["86",11,11],"IN":["91",10,10],"KR":["82",9,10],"AE":["971",9,9],"US":["1",10,10],"CA":["1",10,10],"DE":["49",7,13],"GB":["44",9,10],"FR":["33",9,9],"IT":["39",8,12],"TR":["90",10,10],"PL":["48",9,9],"KG":["996",9,9],"UZ":["998",9,9],"AM":["374",8,8],"GE":["995",9,9],"AZ":["994",9,9],"TJ":["992",9,9],"MD":["373",8,8],"NL":["31",9,9],"ES":["34",9,9],"PT":["351",9,9],"CH":["41",9,9],"BE":["32",8,9],"LT":["370",8,8],"LV":["371",8,8],"EE":["372",7,8],"JP":["81",9,10],"SG":["65",8,8],"TH":["66",9,9],"VN":["84",9,10]};
+const SERVICES = new Set(["Международная перевозка","Таможенное оформление","Логистика и склад","Агентские услуги","Другое"]);
 const EXTRA_HEADERS = {
   "content-type":"application/json; charset=utf-8",
   "cache-control":"no-store, private",
@@ -71,14 +69,23 @@ export async function onRequestPost({request,env}) {
     return reply(400,"invalid_json");
   if(field(data,"website",40)) return reply(202,"accepted");
   if(data.consent!==true) return reply(422,"consent_required");
-  const name=field(data,"name",120);
-  const phone=field(data,"phone",36);
+  const country=field(data,"country",2);
+  const national=field(data,"phone",20);
+  const rule=PHONE_RULES[country];
+  if(!rule || !/^[0-9]+$/.test(national)
+     || national.length<rule[1] || national.length>rule[2]
+     || (rule[0]+national).length>15) return reply(422,"invalid_phone");
+  const phone="+"+rule[0]+national;
   const email=field(data,"email",160);
+  const parts=email.split("@");
+  if(parts.length!==2 || !/^[A-Za-z0-9._%+-]+$/.test(parts[0])
+     || parts[0].startsWith(".") || parts[0].endsWith(".") || parts[0].includes("..")
+     || !/^[A-Za-z]{2,24}$/.test(parts[1].split(".").at(-1))
+     || parts[1].split(".").length<2
+     || !parts[1].split(".").every(x=>/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(x)))
+    return reply(422,"invalid_email");
   const service=field(data,"service",100);
-  if(name.length<2 || !/^[+0-9 ()-]{7,36}$/.test(phone)
-    || (phone.match(/\d/g)||[]).length<7
-    || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    || !SERVICES.has(service)) return reply(422,"invalid_fields");
+  if(!SERVICES.has(service)) return reply(422,"invalid_fields");
   // Cloudflare Turnstile is mandatory: honeypot alone is insufficient.
   const ip=request.headers.get("cf-connecting-ip") || "";
   const fetcher=globalThis.fetch;
@@ -86,10 +93,9 @@ export async function onRequestPost({request,env}) {
                             env.BKM_TURNSTILE_SECRET,ip,url.hostname,fetcher))
     return reply(422,"verification_required");
   const comments=[
-    "Услуга: "+service,
-    "Маршрут: "+field(data,"origin",150)+" → "+field(data,"destination",150),
-    "Груз: "+field(data,"cargo",180),
-    "Пожелания: "+field(data,"details",1600),
+    "Вид услуги: "+service,
+    "Страна телефона: "+country,
+    "Комментарии: "+field(data,"details",1600),
     "Страница: "+field(data,"page",200),
     "Согласие: "+new Date().toISOString(),
     "Редакция согласия: "+String(env.BKM_CONSENT_VERSION).slice(0,80),
@@ -97,14 +103,12 @@ export async function onRequestPost({request,env}) {
   ].join("\n");
   const fields={
     TITLE:"Сайт БКМ — "+service,
-    NAME:name,
-    COMPANY_TITLE:field(data,"company",160),
     PHONE:[{VALUE:phone,VALUE_TYPE:"WORK"}],
+    EMAIL:[{VALUE:email,VALUE_TYPE:"WORK"}],
     STATUS_ID:"NEW",SOURCE_ID:"WEB",
     SOURCE_DESCRIPTION:"24bkm.com / Cloudflare Pages",
     OPENED:"N",ASSIGNED_BY_ID:7,COMMENTS:comments
   };
-  if(email) fields.EMAIL=[{VALUE:email,VALUE_TYPE:"WORK"}];
   for(const key of ["source","medium","campaign","term","content"]) {
     const value=field(data,"utm_"+key,150);
     if(value) fields["UTM_"+key.toUpperCase()]=value;

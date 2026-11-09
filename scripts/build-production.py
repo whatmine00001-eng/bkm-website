@@ -120,16 +120,12 @@ if CRM_RELEASE == "on":
     (DEST / "consent.html").write_text(consent_source, encoding="utf-8")
     idx = DEST / "index.html"
     idx_html = idx.read_text(encoding="utf-8")
-    consent_label = """<label class="field full bkm-consent"><span><input name="consent" type="checkbox" required> Даю <a href="consent.html" target="_blank" rel="noopener noreferrer">согласие на обработку персональных данных</a> для ответа на заявку. Ознакомлен(а) с <a href="privacy.html" target="_blank" rel="noopener noreferrer">Политикой обработки персональных данных</a>.</span></label>"""
-    idx_html, n = re.subn(r'<label\s+class="field full bkm-consent">.*?</label>',
-                           lambda _: consent_label, idx_html, count=1, flags=re.S | re.I)
-    if n != 1:
-        raise SystemExit("CRM release blocked: consent checkbox not found")
-    if '<option>Финансовое сопровождение</option>' not in idx_html:
-        idx_html = idx_html.replace(
-            '<option>Другое</option>',
-            '<option>Финансовое сопровождение</option><option>Другое</option>'
-        )
+    # Preserve the approved form's accessible checkbox and correct inline
+    # legal link layout; do not overwrite it with the legacy broken markup.
+    if 'class="bkm-consent__copy"' not in idx_html:
+        raise SystemExit("CRM release blocked: consent checkbox layout missing")
+    if '<option value="Агентские услуги">Агентские услуги</option>' not in idx_html:
+        raise SystemExit("CRM release blocked: agency service option missing")
     if 'href="consent.html"' not in idx_html or 'href="privacy.html"' not in idx_html:
         raise SystemExit("CRM release blocked: separate legal links missing in form")
     # Link both documents from the footer as well as the consent checkbox.

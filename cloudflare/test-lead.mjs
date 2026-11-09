@@ -13,10 +13,9 @@ const env={
   BKM_CONSENT_VERSION:"test-fixture-v1"
 };
 const data={
-  name:"ТЕСТ БКМ",phone:"+70000000000",company:"Тест",
-  email:"example@example.test",service:"Сборные грузы",
-  origin:"Санкт-Петербург",destination:"Минск",
-  cargo:"Тестовый груз",details:"Проверка без реальной отправки",
+  country:"RU",phone:"9991234567",
+  email:"example@company.ru",service:"Агентские услуги",
+  details:"Тестовый комментарий без реальных данных",
   consent:true,website:"",turnstile_token:"TEST_ONLY",
   page:"/index.html",utm_source:"test"
 };
@@ -40,7 +39,7 @@ test("origin and host enforced",async()=>{
   assert.equal(a.status,403);assert.equal(b.status,403);
 });
 test("consent, phone and service validated",async()=>{
-  for(const [field,value] of [["consent",false],["phone","123"],["service","outside whitelist"]]){
+  for(const [field,value] of [["consent",false],["phone","123"],["email","wrong-address"],["country","XX"],["service","outside whitelist"]]){
     const res=await api.onRequestPost({request:request({...data,[field]:value}),env});
     assert.equal(res.status,422);
   }
@@ -54,7 +53,10 @@ test("valid synthetic lead is sent to Bitrix24 after Turnstile and assigned to I
       let payload=JSON.parse(options.body);
       assert.equal(payload.fields.ASSIGNED_BY_ID,7);
       assert.equal(payload.fields.SOURCE_ID,"WEB");
-      assert.equal(payload.fields.NAME,data.name);
+      assert.equal(payload.fields.PHONE[0].VALUE,"+79991234567");
+      assert.equal(payload.fields.EMAIL[0].VALUE,data.email);
+      assert.equal(payload.fields.ASSIGNED_BY_ID,7);
+      assert.ok(payload.fields.COMMENTS.includes("Вид услуги: Агентские услуги"));
       assert.equal(payload.fields.UTM_SOURCE,"test");
       return new Response('{"result":123}',{status:200});
     }
@@ -114,4 +116,26 @@ test("the actual BKM Pages host is accepted for staging test only",async()=>{
 test("other pages.dev hosts remain forbidden",async()=>{
   const res=await api.onRequestPost({request:request(data,{}, "https://other-project.pages.dev/api/lead"),env});
   assert.equal(res.status,403);
+});
+
+test("validation rejects excessive phone digits and invalid email before CAPTCHA",async()=>{
+ for(const change of [{phone:"99912345679999"},{email:"anything@@foo.ru"},{email:"foo@bar"},{email:"foo@bar.c"}]){
+   const res=await api.onRequestPost({request:request({...data,...change}),env});
+   assert.equal(res.status,422);
+ }
+});
+test("Kazakhstan code produces normalized +7 CRM phone",async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>{
+   if(String(url).includes("siteverify"))
+     return new Response('{"success":true,"hostname":"24bkm.com"}',{status:200});
+   const fields=JSON.parse(options.body).fields;
+   assert.equal(fields.PHONE[0].VALUE,"+77011234567");
+   assert.equal(fields.ASSIGNED_BY_ID,7);
+   return new Response('{"result":900}',{status:200});
+ };
+ try{
+   const res=await api.onRequestPost({request:request({...data,country:"KZ",phone:"7011234567"}),env});
+   assert.equal(res.status,200);
+ }finally{globalThis.fetch=original;}
 });

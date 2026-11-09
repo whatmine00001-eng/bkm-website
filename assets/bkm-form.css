@@ -1,0 +1,26 @@
+
+/* BKM lead form v2 — intentionally scoped, works on Cloudflare and Beget. */
+#bkm-lead-form .fields{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+#bkm-lead-form .field{min-width:0;gap:7px;font-size:13px;line-height:1.45}
+#bkm-lead-form .field.full{grid-column:1/-1}
+#bkm-lead-form .bkm-phone-row{display:flex;align-items:stretch;gap:10px;min-width:0}
+#bkm-lead-form .bkm-phone-row select{flex:0 0 190px;width:190px;min-width:0;font-size:13px;white-space:nowrap;padding:10px 9px}
+#bkm-lead-form .bkm-phone-row input{flex:1 1 180px;width:0;min-width:0;font-variant-numeric:tabular-nums;letter-spacing:.035em}
+#bkm-lead-form .bkm-field-hint{display:block;font-size:11px;line-height:1.4;color:#a9c2b9;font-weight:500}
+#bkm-lead-form input,#bkm-lead-form select,#bkm-lead-form textarea{font-size:14px;max-width:100%;box-sizing:border-box}
+#bkm-lead-form textarea{resize:vertical;min-height:100px}
+#bkm-lead-form .bkm-consent{display:flex;flex-direction:row;align-items:flex-start;gap:12px;margin-top:2px}
+#bkm-lead-form .bkm-consent input{margin:4px 0 0;flex:0 0 17px;width:17px;height:17px;min-height:17px;padding:0;accent-color:#f18b26}
+#bkm-lead-form .bkm-consent span.bkm-consent__copy{display:block;flex:1 1 auto;font-size:12px;line-height:1.65;font-weight:500;min-width:0}
+#bkm-lead-form .bkm-consent__copy a{display:inline;color:#ffad52;text-decoration:underline;text-underline-offset:2px}
+#bkm-lead-form .bkm-consent__copy a:hover{color:#ffd6a0}
+#bkm-lead-form .form__actions{margin-top:19px}
+#bkm-lead-form button[disabled]{cursor:not-allowed;opacity:.65}
+#bkm-lead-form #bkm-turnstile{margin-top:18px;min-height:40px}
+#bkm-lead-form .bkm-status{overflow-wrap:anywhere}
+@media(max-width:560px){
+  #bkm-lead-form .bkm-phone-row{flex-direction:column;gap:9px}
+  #bkm-lead-form .bkm-phone-row select{flex:auto;width:100%}
+  #bkm-lead-form .bkm-phone-row input{width:100%;flex:auto;min-height:44px}
+  #bkm-lead-form .bkm-consent span.bkm-consent__copy{font-size:12px}
+}
