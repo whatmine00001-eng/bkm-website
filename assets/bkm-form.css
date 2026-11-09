@@ -24,3 +24,7 @@
   #bkm-lead-form .bkm-phone-row input{width:100%;flex:auto;min-height:44px}
   #bkm-lead-form .bkm-consent span.bkm-consent__copy{font-size:12px}
 }
+
+#bkm-lead-form #bkm-email[aria-invalid="true"]{border-color:#e1796a!important;box-shadow:0 0 0 1px rgba(225,121,106,.25)}
+#bkm-lead-form .bkm-field-hint[data-type="error"]{color:#ffac93}
+#bkm-lead-form .bkm-field-hint[data-type="success"]{color:#9de4bd}

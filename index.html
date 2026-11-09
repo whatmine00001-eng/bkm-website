@@ -143,7 +143,8 @@
     <label class="field full" for="bkm-email">Email *
       <input id="bkm-email" name="email" type="email" inputmode="email" autocomplete="email"
        required maxlength="160" pattern="[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}"
-       placeholder="name@company.ru" title="Укажите адрес в формате name@company.ru">
+       placeholder="name@company.ru" title="Укажите адрес в формате name@company.ru" aria-describedby="bkm-email-hint">
+      <span class="bkm-field-hint" id="bkm-email-hint" aria-live="polite">Пример: name@company.ru</span>
     </label>
     <label class="field full" for="bkm-service">Вид услуги *
       <select id="bkm-service" name="service" required>

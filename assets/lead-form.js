@@ -5,6 +5,7 @@ if (!form) return;
 const country = form.elements.country;
 const phone = form.elements.phone;
 const emailInput = form.elements.email;
+const emailHint = document.getElementById("bkm-email-hint");
 const button = form.querySelector('button[type="submit"]');
 const status = document.getElementById("bkm-form-status");
 const hint = document.getElementById("bkm-phone-hint");
@@ -21,18 +22,20 @@ function message(text, type) {
 function syncPhone() {
  const rule = rules[country.value] || rules.RU;
  const [dial, min, max] = rule;
- phone.value = phone.value.replace(/[^0-9]/g, "").slice(0, max);
+ const rawDigits=phone.value.replace(/[^0-9]/g,"");
+ const truncated=rawDigits.length>max;
+ phone.value=rawDigits.slice(0,max);
  phone.minLength = min;
  phone.maxLength = max;
  phone.setAttribute("pattern", "[0-9]{" + min + (min === max ? "" : "," + max) + "}");
  phone.setCustomValidity("");
  phone.placeholder = min === 10 ? "9991234567" : "Номер без кода страны";
  hint.textContent = (min === max ? String(min) : min + "–" + max) +
-    " цифр без +" + dial + ", пробелов и скобок";
+    " цифр без +" + dial + " · введено " + phone.value.length + "/" + max +
+    (truncated ? " (лишние цифры удалены)" : "");
 }
 country.addEventListener("change", function () { phone.value = ""; syncPhone(); });
 phone.addEventListener("input", syncPhone);
-emailInput.addEventListener("input", function () { emailInput.setCustomValidity(""); });
 syncPhone();
 if (!live) message("Для отправки откроется почтовая программа.", "info");
 else message("Завершите проверку безопасности и заполните поля.", "info");
@@ -45,6 +48,19 @@ function emailValid(email) {
    return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(part);
  });
 }
+function updateEmailStatus() {
+ const email=emailInput.value.trim();
+ const good=email.length===0 || emailValid(email);
+ emailInput.setCustomValidity(good ? "" : "Введите email в формате name@company.ru");
+ emailInput.setAttribute("aria-invalid", good ? "false" : "true");
+ if(emailHint){
+  emailHint.textContent=!email ? "Пример: name@company.ru" :
+    good ? "Адрес указан корректно" : "Нужен адрес вида name@company.ru";
+  emailHint.dataset.type=!email ? "info" : good ? "success" : "error";
+ }
+}
+emailInput.addEventListener("input",updateEmailStatus);
+emailInput.addEventListener("blur",updateEmailStatus);
 const query = new URLSearchParams(location.search);
 const utmKeys = ["source","medium","campaign","term","content"];
 let utm = {};
