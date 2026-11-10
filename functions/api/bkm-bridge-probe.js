@@ -66,7 +66,20 @@ export async function onRequestGet({request,env}){
   else if(result?.result && typeof result.result==="object" && result.result.NAME)
     code="crm_fields_ok";
   else code="crm_unexpected_response";
+  // Compare existing production redirect:error to the verified manual mode.
+  let strictRedirectStatus="not_checked";
+  try{
+    const strict=await fetch(base+"/crm.lead.fields.json",{
+      method:"POST",
+      headers:{"content-type":"application/json","accept":"application/json"},
+      body:"{}",redirect:"error",signal:AbortSignal.timeout(9000)
+    });
+    strictRedirectStatus=String(strict.status);
+  }catch(e){
+    strictRedirectStatus=["TimeoutError","AbortError"].includes(e?.name)
+      ? "timeout" : e?.name==="TypeError" ? "typeerror" : "othererror";
+  }
   cached={code,status:code==="crm_fields_ok"?200:502};
   cachedAt=Date.now();
-  return new Response(JSON.stringify({code:cached.code,rootStatus}),{status:cached.status,headers:HEADERS});
+  return new Response(JSON.stringify({code:cached.code,rootStatus,strictRedirectStatus}),{status:cached.status,headers:HEADERS});
 }
