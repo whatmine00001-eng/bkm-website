@@ -121,8 +121,11 @@ export async function onRequestPost({request,env}) {
       method:"POST",headers:{"content-type":"application/json","accept":"application/json"},
       body:JSON.stringify({fields,params:{REGISTER_SONET_EVENT:"Y"}}),
       signal:AbortSignal.timeout(15000),
-      redirect:"error"
+      // Cloudflare Workers + on-prem Bitrix REST can throw on redirect:"error"
+      // even when the REST endpoint is healthy. Do not follow redirects.
+      redirect:"manual"
     });
+    if(crm.status>=300 && crm.status<400) return reply(502,"crm_redirected");
     if(!crm.ok) return reply(502,"crm_unavailable");
     let result;
     try { result=await crm.json(); }

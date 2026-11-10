@@ -165,3 +165,20 @@ test("Invalid webhook credentials yield a safe auth rejection code",async()=>{
     assert.deepEqual(await res.json(),{ok:false,code:"crm_auth_rejected"});
   }finally{globalThis.fetch=old}
 });
+
+test("Cloudflare-to-Bitrix requests use manual redirect, never automatic follow", async()=>{
+  const old=globalThis.fetch;
+  let redirectPolicy;
+  globalThis.fetch=async (url,opts)=>{
+    if(String(url).includes("siteverify"))
+      return new Response('{"success":true,"hostname":"24bkm.com"}',{status:200});
+    redirectPolicy=opts.redirect;
+    return new Response(null,{status:302,headers:{location:"https://bitrix.24bkm.com/auth/"}});
+  };
+  try{
+    const res=await api.onRequestPost({request:request(),env});
+    assert.equal(redirectPolicy,"manual");
+    assert.equal(res.status,502);
+    assert.deepEqual(await res.json(),{ok:false,code:"crm_redirected"});
+  }finally{globalThis.fetch=old}
+});

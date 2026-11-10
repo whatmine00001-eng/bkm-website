@@ -148,7 +148,7 @@ form.addEventListener("submit", async function(event) {
      "invalid_phone","invalid_email","verification_required","crm_unavailable",
      "crm_invalid_response","crm_unconfirmed","crm_response_not_json","crm_timeout",
      "crm_connection_failed","crm_auth_rejected","crm_access_denied",
-     "crm_method_unavailable","crm_rejected","crm_non_json_response"];
+     "crm_method_unavailable","crm_rejected","crm_non_json_response","crm_redirected"];
    if(status) {
      status.dataset.responseCode=codes.includes(result.code)?result.code:"unknown";
      status.dataset.httpStatus=String(response.status);
