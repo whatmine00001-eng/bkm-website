@@ -58,9 +58,11 @@
         sitekey: cfg.sitekey,
         theme: "auto",
         callback: function (token) {
-          if (token) {
+          if (token && form.dataset.deliveryUnconfirmed !== "true") {
             submit.disabled = false;
-            message("Заполните поля и отправьте заявку — она поступит менеджеру БКМ.");
+            // Never overwrite a server error or an ambiguous CRM response.
+            if (!status || status.dataset.type !== "error")
+              message("Заполните поля и отправьте заявку — она поступит менеджеру БКМ.");
           }
         },
         "expired-callback": function () {

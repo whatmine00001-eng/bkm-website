@@ -96,6 +96,10 @@
   <form class="form" id="bkm-lead-form">
    <h3>Обсудить поставку</h3><p class="form-intro">Оставьте контакты и кратко опишите задачу. Мы свяжемся с вами для уточнения деталей.</p>
    <div class="fields">
+    <label class="field full" for="bkm-name">Как к вам обращаться *
+      <input id="bkm-name" name="name" type="text" required minlength="2" maxlength="120"
+        autocomplete="name" placeholder="Ваше имя" title="Укажите имя для обращения">
+    </label>
     <div class="field full"><label for="bkm-phone">Телефон *</label>
      <div class="bkm-phone-row">
       <select name="country" id="bkm-country" aria-label="Страна и телефонный код" required>

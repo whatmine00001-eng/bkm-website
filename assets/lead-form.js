@@ -2,6 +2,7 @@
 "use strict";
 const form = document.getElementById("bkm-lead-form");
 if (!form) return;
+const nameInput = form.elements.name;
 const country = form.elements.country;
 const phone = form.elements.phone;
 const emailInput = form.elements.email;
@@ -59,6 +60,7 @@ function updateEmailStatus() {
   emailHint.dataset.type=!email ? "info" : good ? "success" : "error";
  }
 }
+nameInput.addEventListener("input",function(){nameInput.setCustomValidity("");});
 emailInput.addEventListener("input",updateEmailStatus);
 emailInput.addEventListener("blur",updateEmailStatus);
 const query = new URLSearchParams(location.search);
@@ -75,8 +77,15 @@ for (const key of utmKeys) {
 try { sessionStorage.setItem("bkm_utms", JSON.stringify(utm)); } catch (_) {}
 form.addEventListener("submit", async function(event) {
  event.preventDefault();
- if (submitting) return;
+ if (submitting || form.dataset.deliveryUnconfirmed === "true") return;
  syncPhone();
+ const name = nameInput.value.trim();
+ if (name.length < 2 || name.length > 120) {
+   nameInput.setCustomValidity("Укажите, как к вам обращаться (минимум 2 символа).");
+   nameInput.reportValidity();
+   return;
+ }
+ nameInput.setCustomValidity("");
  const rule = rules[country.value];
  if (!rule || phone.value.length < rule[1] || phone.value.length > rule[2]) {
    phone.setCustomValidity("Проверьте количество цифр номера для выбранной страны.");
@@ -92,7 +101,7 @@ form.addEventListener("submit", async function(event) {
  if (!form.reportValidity()) return;
  const data = new FormData(form);
  const payload = {
-   country:country.value, phone:phone.value, email,
+   name, country:country.value, phone:phone.value, email,
    service:String(data.get("service")||"").trim(),
    details:String(data.get("details")||"").trim(),
    website:String(data.get("website")||""),
@@ -103,7 +112,7 @@ form.addEventListener("submit", async function(event) {
  for(const key of utmKeys) payload["utm_"+key]=String(utm[key]||"").slice(0,150);
  const intl = "+" + rule[0] + payload.phone;
  if(!live) {
-   const body=["Телефон: "+intl,"Email: "+payload.email,"Вид услуги: "+payload.service,
+   const body=["Имя: "+name,"Телефон: "+intl,"Email: "+payload.email,"Вид услуги: "+payload.service,
      "Комментарии: "+payload.details].join("\n");
    location.href="mailto:info@24bkm.com?subject="+encodeURIComponent("Запрос с сайта БКМ")+
      "&body="+encodeURIComponent(body);
@@ -130,25 +139,49 @@ form.addEventListener("submit", async function(event) {
    const codes=["lead_created","not_enabled","server_not_configured","host_rejected",
      "origin_rejected","invalid_payload_size","consent_required","invalid_fields",
      "invalid_phone","invalid_email","verification_required","crm_unavailable",
-     "crm_invalid_response","crm_unconfirmed"];
+     "crm_invalid_response","crm_unconfirmed","crm_response_not_json","crm_timeout","crm_connection_failed"];
    if(status) {
      status.dataset.responseCode=codes.includes(result.code)?result.code:"unknown";
      status.dataset.httpStatus=String(response.status);
    }
-   if(!response.ok || result.ok!==true || result.code!=="lead_created")
-     throw new Error("lead_unconfirmed");
+   if(!response.ok || result.ok!==true || result.code!=="lead_created") {
+     const error = new Error("lead_unconfirmed");
+     error.code = result.code || "unknown";
+     error.httpStatus = response.status;
+     throw error;
+   }
    message("Заявка отправлена в БКМ. Спасибо! Мы свяжемся с вами.", "success");
    form.reset();syncPhone();
    if(typeof window.BKMTrackGoal==="function")window.BKMTrackGoal("bkm_lead_success");
- } catch (_) {
-   message("Не удалось подтвердить получение заявки. Не отправляйте повторно сразу; позвоните нам или напишите на info@24bkm.com.", "error");
+ } catch (error) {
+   const code = String(error && error.code || "network_or_unexpected").replace(/[^a-z0-9_]/g, "").slice(0,42);
+   if (status) {
+     status.dataset.responseCode = code;
+     if (error && error.httpStatus) status.dataset.httpStatus = String(error.httpStatus);
+   }
+   const invalid = ["invalid_fields","invalid_phone","invalid_email","consent_required","invalid_json"].includes(code);
+   const turnstileError = code === "verification_required";
+   if (invalid) {
+     message("Проверьте данные в форме и повторите отправку. Код: " + code + ".", "error");
+   } else if (turnstileError) {
+     message("Проверка Cloudflare не подтвердилась. Пройдите её заново. Код: verification_required.", "error");
+   } else {
+     // A network timeout or a CRM response failure may conceal a created lead.
+     // Never invite the visitor to resubmit without checking CRM.
+     message("Bitrix24 пока не подтвердил заявку (код: " + code +
+       "). Не отправляйте повторно: сначала проверьте поступление заявки в БКМ. " +
+       "Для связи — info@24bkm.com или 8 800 707-79-02.", "error");
+     form.dataset.deliveryUnconfirmed = "true";
+   }
  } finally {
    clearTimeout(timeout);
    submitting=false;
    form.removeAttribute("aria-busy");
    if(button){
      button.textContent="Отправить заявку ↗";
-     if(typeof window.BKMResetTurnstile==="function"){
+     if(form.dataset.deliveryUnconfirmed === "true") {
+       button.disabled = true;
+     } else if(typeof window.BKMResetTurnstile==="function") {
        window.BKMResetTurnstile();
      } else button.disabled=false;
    }

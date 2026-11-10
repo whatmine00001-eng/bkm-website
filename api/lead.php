@@ -93,6 +93,10 @@ if (input($data, 'website', 40) !== '') {
 if (($data['consent'] ?? false) !== true) {
     reply(422, 'consent_required');
 }
+$name = input($data, 'name', 120);
+if (mb_strlen($name) < 2) {
+    reply(422, 'invalid_fields');
+}
 $country = strtoupper(input($data, 'country', 2));
 $phoneRaw = input($data, 'phone', 20);
 $email = input($data, 'email', 160);
@@ -231,6 +235,7 @@ $comments = implode("\n", [
 ]);
 $fields = [
     'TITLE' => 'Сайт БКМ — ' . $service,
+    'NAME' => $name,
     'SOURCE_ID' => 'WEB',
     'SOURCE_DESCRIPTION' => 'Сайт БКМ (Beget)',
     'OPENED' => 'N',

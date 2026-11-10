@@ -13,7 +13,7 @@ const env={
   BKM_CONSENT_VERSION:"test-fixture-v1"
 };
 const data={
-  country:"RU",phone:"9991234567",
+  name:"ТЕСТ КОНТАКТ",country:"RU",phone:"9991234567",
   email:"example@company.ru",service:"Агентские услуги",
   details:"Тестовый комментарий без реальных данных",
   consent:true,website:"",turnstile_token:"TEST_ONLY",
@@ -39,7 +39,7 @@ test("origin and host enforced",async()=>{
   assert.equal(a.status,403);assert.equal(b.status,403);
 });
 test("consent, phone and service validated",async()=>{
-  for(const [field,value] of [["consent",false],["phone","123"],["email","wrong-address"],["country","XX"],["service","outside whitelist"]]){
+  for(const [field,value] of [["consent",false],["name",""],["phone","123"],["email","wrong-address"],["country","XX"],["service","outside whitelist"]]){
     const res=await api.onRequestPost({request:request({...data,[field]:value}),env});
     assert.equal(res.status,422);
   }
@@ -53,6 +53,7 @@ test("valid synthetic lead is sent to Bitrix24 after Turnstile and assigned to I
       let payload=JSON.parse(options.body);
       assert.equal(payload.fields.ASSIGNED_BY_ID,7);
       assert.equal(payload.fields.SOURCE_ID,"WEB");
+      assert.equal(payload.fields.NAME,data.name);
       assert.equal(payload.fields.PHONE[0].VALUE,"+79991234567");
       assert.equal(payload.fields.EMAIL[0].VALUE,data.email);
       assert.equal(payload.fields.ASSIGNED_BY_ID,7);

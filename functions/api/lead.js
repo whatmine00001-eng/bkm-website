@@ -69,6 +69,8 @@ export async function onRequestPost({request,env}) {
     return reply(400,"invalid_json");
   if(field(data,"website",40)) return reply(202,"accepted");
   if(data.consent!==true) return reply(422,"consent_required");
+  const name=field(data,"name",120);
+  if(name.length<2) return reply(422,"invalid_fields");
   const country=field(data,"country",2);
   const national=field(data,"phone",20);
   const rule=PHONE_RULES[country];
@@ -103,6 +105,7 @@ export async function onRequestPost({request,env}) {
   ].join("\n");
   const fields={
     TITLE:"Сайт БКМ — "+service,
+    NAME:name,
     PHONE:[{VALUE:phone,VALUE_TYPE:"WORK"}],
     EMAIL:[{VALUE:email,VALUE_TYPE:"WORK"}],
     STATUS_ID:"NEW",SOURCE_ID:"WEB",
