@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * BKM lead receiver — Beget PHP 8+, same-origin POST only.
+ * BKM lead receiver — Beget or Timeweb Cloud PHP 8.2+, same-origin POST only.
  * Secret configuration (outside public_html): BKM_PRIVATE_CONFIG_PATH env,
  * defaulting to /home/h/help24pw/.bkm_private/config.php on Beget.
  * Test HTTP website must NEVER accept customer information.
@@ -25,14 +25,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     reply(405, 'method_not_allowed');
 }
 
+$timewebMode = (getenv('BKM_HOSTING_TARGET') === 'timeweb');
 $https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTPS'] ?? '') === '1';
+// Timeweb App Platform terminates HTTPS at its Caddy reverse proxy.
+// Trust this header only for deployments explicitly built for Timeweb Cloud.
+if ($timewebMode && strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https') {
+    $https = true;
+}
 if (!$https) {
     reply(426, 'https_required');
 }
 
 $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
 $host = preg_replace('/:\d+$/', '', $host);
-if (!in_array($host, ['24bkm.com', 'www.24bkm.com'], true)) {
+$hosts = ['24bkm.com', 'www.24bkm.com'];
+if ($timewebMode) {
+    $hosts = array_values(array_unique(array_filter(array_map(
+        'trim', explode(',', strtolower((string) (getenv('BKM_ALLOWED_HOSTS') ?: '24bkm.com,www.24bkm.com')))
+    ))));
+}
+if (!in_array($host, $hosts, true)) {
     reply(403, 'host_rejected');
 }
 $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
@@ -60,11 +72,24 @@ if (!is_array($data)) {
     reply(400, 'invalid_json');
 }
 
-$configFile = getenv('BKM_PRIVATE_CONFIG_PATH') ?: '/home/h/help24pw/.bkm_private/config.php';
-if (!is_file($configFile) || !is_readable($configFile)) {
-    reply(503, 'not_configured');
+if ($timewebMode) {
+    // App Platform runs ephemeral containers. Use runtime environment secrets;
+    // never include them in Docker layers or the public repository.
+    $configFile = '';
+    $config = [
+        'enabled' => getenv('BKM_CRM_ENABLED') === 'true',
+        'privacy_approved' => true,
+        'rate_salt' => (string) (getenv('BKM_RATE_SALT') ?: ''),
+        'bitrix_webhook_url' => (string) (getenv('BKM_BITRIX_WEBHOOK_URL') ?: ''),
+        'turnstile_secret' => (string) (getenv('BKM_TURNSTILE_SECRET') ?: '')
+    ];
+} else {
+    $configFile = getenv('BKM_PRIVATE_CONFIG_PATH') ?: '/home/h/help24pw/.bkm_private/config.php';
+    if (!is_file($configFile) || !is_readable($configFile)) {
+        reply(503, 'not_configured');
+    }
+    $config = require $configFile;
 }
-$config = require $configFile;
 if (!is_array($config) || ($config['enabled'] ?? false) !== true ||
     ($config['privacy_approved'] ?? false) !== true) {
     reply(503, 'not_enabled');
@@ -176,11 +201,22 @@ if (!in_array($service, [
     reply(422, 'invalid_service');
 }
 
-$rateDirectory = dirname($configFile) . '/rate';
+// Timeweb App Platform container filesystem is not persistent between deploys.
+// This is a supplementary throttle; Turnstile remains the main bot protection.
+$rateDirectory = $timewebMode
+    ? sys_get_temp_dir() . '/bkm_rate'
+    : dirname($configFile) . '/rate';
 if (!is_dir($rateDirectory) && !@mkdir($rateDirectory, 0700, true) && !is_dir($rateDirectory)) {
     reply(503, 'server_unavailable');
 }
 $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+if ($timewebMode) {
+    // Timeweb Caddy supplies the original client IP via reverse proxy.
+    $forwarded = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
+    if (filter_var($forwarded, FILTER_VALIDATE_IP)) {
+        $ip = $forwarded;
+    }
+}
 $rateId = hash('sha256', $ip . $salt);
 $file = @fopen($rateDirectory . '/' . $rateId . '.json', 'c+');
 if (!$file || !flock($file, LOCK_EX)) {
@@ -205,6 +241,39 @@ fflush($file);
 flock($file, LOCK_UN);
 fclose($file);
 
+if ($timewebMode) {
+    // The same Cloudflare Turnstile widget is used on Timeweb, but server-side
+    // verification occurs in PHP in the Russian hosting location.
+    $secret = (string) ($config['turnstile_secret'] ?? '');
+    $token = input($data, 'turnstile_token', 2500);
+    if (strlen($secret) < 8 || $token === '') {
+        reply(503, 'verification_not_configured');
+    }
+    if (!function_exists('curl_init')) {
+        reply(503, 'server_unavailable');
+    }
+    $verify = curl_init('https://challenges.cloudflare.com/turnstile/v0/siteverify');
+    curl_setopt_array($verify, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => http_build_query(['secret' => $secret, 'response' => $token, 'remoteip' => $ip]),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 9,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2
+    ]);
+    $body = curl_exec($verify);
+    $verifyStatus = curl_getinfo($verify, CURLINFO_RESPONSE_CODE);
+    curl_close($verify);
+    $verified = is_string($body) ? json_decode($body, true) : null;
+    if ($verifyStatus !== 200 || !is_array($verified) ||
+        ($verified['success'] ?? false) !== true ||
+        (string) ($verified['hostname'] ?? '') !== $host) {
+        reply(422, 'verification_required');
+    }
+}
 $webhook = trim((string) ($config['bitrix_webhook_url'] ?? ''));
 $parsedWebhook = parse_url($webhook);
 if (!is_array($parsedWebhook) ||
@@ -237,7 +306,7 @@ $fields = [
     'TITLE' => 'Сайт БКМ — ' . $service,
     'NAME' => $name,
     'SOURCE_ID' => 'WEB',
-    'SOURCE_DESCRIPTION' => 'Сайт БКМ (Beget)',
+    'SOURCE_DESCRIPTION' => $timewebMode ? 'Сайт БКМ (Timeweb)' : 'Сайт БКМ (Beget)',
     'OPENED' => 'N',
     'STATUS_ID' => 'NEW',
     'ASSIGNED_BY_ID' => 7,

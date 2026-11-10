@@ -17,6 +17,11 @@ ROOT = Path.cwd()
 DEST = ROOT / "_production_release"
 DOMAIN = "https://24bkm.com/"
 CRM_RELEASE = os.environ.get("BKM_CRM_RELEASE", "off").strip().lower()
+RUNTIME_TARGET = os.environ.get("BKM_RUNTIME_TARGET", "beget").strip().lower()
+if RUNTIME_TARGET not in ("beget", "timeweb"):
+    raise SystemExit("Unknown BKM_RUNTIME_TARGET")
+if RUNTIME_TARGET == "timeweb" and CRM_RELEASE != "on":
+    raise SystemExit("Timeweb Docker release must use BKM_CRM_RELEASE=on")
 if CRM_RELEASE not in ("off", "on"):
     raise SystemExit("BKM_CRM_RELEASE must be 'off' or 'on'")
 # This file must be replaced by the actual policy approved by the company.
@@ -158,6 +163,37 @@ if CRM_RELEASE == "on":
         raise SystemExit("CRM release blocked: unsafe public configuration")
     cfg_path.write_text(cfg.replace("formsEnabled: false", "formsEnabled: true", 1),
                         encoding="utf-8")
+    if RUNTIME_TARGET == "timeweb":
+        index_file = DEST / "index.html"
+        site_html = index_file.read_text(encoding="utf-8")
+        if site_html.count('<div class="form__actions">') != 1:
+            raise SystemExit("Missing form actions in Timeweb candidate")
+        site_html = site_html.replace(
+            '<div class="form__actions">',
+            '<div id="bkm-turnstile" role="group" aria-label="Проверка безопасности"></div>'
+            '<div class="form__actions">', 1
+        )
+        if site_html.count('<button class="btn" type="submit">') != 1:
+            raise SystemExit("Missing active submit control in Timeweb candidate")
+        site_html = site_html.replace(
+            '<button class="btn" type="submit">',
+            '<button class="btn" type="submit" disabled>', 1
+        )
+        if site_html.count('</body>') != 1:
+            raise SystemExit("Invalid Timeweb body closure")
+        site_html = site_html.replace(
+            '</body>', '<script src="assets/turnstile-setup.js" defer></script></body>', 1
+        )
+        index_file.write_text(site_html, encoding="utf-8")
+        bridge_script = (ROOT / "cloudflare" / "turnstile-setup.js").read_text(encoding="utf-8")
+        if bridge_script.count('"/api/form-config"') != 1:
+            raise SystemExit("Turnstile bootstrap config API changed")
+        bridge_script = bridge_script.replace(
+            '"/api/form-config"', '"/api/form-config.php"', 1
+        )
+        (DEST / "assets" / "turnstile-setup.js").write_text(bridge_script, encoding="utf-8")
+        shutil.copy2(ROOT / "timeweb" / "form-config.php",
+                     DEST / "api" / "form-config.php")
 
 # Explicitly do not ship the draft privacy.html or any private credentials.
 (DEST / "robots.txt").write_text(
@@ -196,5 +232,10 @@ else:
         raise SystemExit("CRM release missing backend or approved privacy policy")
     if "formsEnabled: true" not in (DEST / "assets" / "site-config.js").read_text(encoding="utf-8"):
         raise SystemExit("CRM feature flag remains off")
+if RUNTIME_TARGET == "timeweb":
+    assert (DEST / "api" / "form-config.php").is_file()
+    assert (DEST / "assets" / "turnstile-setup.js").is_file()
+    assert 'id="bkm-turnstile"' in (DEST / "index.html").read_text(encoding="utf-8")
+    assert 'type="submit" disabled' in (DEST / "index.html").read_text(encoding="utf-8")
 assert not (DEST / "index.php").exists()
 print(f"Production candidate validated: {len(PAGES)} HTML files; CRM={CRM_RELEASE}; sitemap present.")

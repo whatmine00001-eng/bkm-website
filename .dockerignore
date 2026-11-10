@@ -1,0 +1,16 @@
+# Docker build context: do not copy generated previews, secrets or local files.
+.git
+.github
+_preview_release
+_production_release
+dist
+.wrangler
+__pycache__
+*.pyc
+.env
+.env.*
+.dev.vars
+*.pem
+*.key
+*.p12
+*.pfx
