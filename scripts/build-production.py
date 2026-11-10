@@ -170,7 +170,7 @@ if CRM_RELEASE == "on":
             raise SystemExit("Missing form actions in Timeweb candidate")
         site_html = site_html.replace(
             '<div class="form__actions">',
-            '<div id="bkm-turnstile" role="group" aria-label="Проверка безопасности"></div>'
+            '<input type="hidden" name="form_token" id="bkm-form-token" value="">'
             '<div class="form__actions">', 1
         )
         if site_html.count('<button class="btn" type="submit">') != 1:
@@ -182,18 +182,32 @@ if CRM_RELEASE == "on":
         if site_html.count('</body>') != 1:
             raise SystemExit("Invalid Timeweb body closure")
         site_html = site_html.replace(
-            '</body>', '<script src="assets/turnstile-setup.js" defer></script></body>', 1
+            '</body>', '<script src="assets/form-setup.js" defer></script></body>', 1
         )
         index_file.write_text(site_html, encoding="utf-8")
-        bridge_script = (ROOT / "cloudflare" / "turnstile-setup.js").read_text(encoding="utf-8")
-        if bridge_script.count('"/api/form-config"') != 1:
-            raise SystemExit("Turnstile bootstrap config API changed")
-        bridge_script = bridge_script.replace(
-            '"/api/form-config"', '"/api/form-config.php"', 1
-        )
-        (DEST / "assets" / "turnstile-setup.js").write_text(bridge_script, encoding="utf-8")
+        # Independent of Cloudflare challenge scripts, so visitors in Russia
+        # can send enquiries even on networks blocking Cloudflare resources.
+        shutil.copy2(ROOT / "timeweb" / "form-setup.js",
+                     DEST / "assets" / "form-setup.js")
         shutil.copy2(ROOT / "timeweb" / "form-config.php",
                      DEST / "api" / "form-config.php")
+        js_path = DEST / "assets" / "lead-form.js"
+        js = js_path.read_text(encoding="utf-8")
+        if 'turnstile_token:String(data.get("cf-turnstile-response")||"")' not in js:
+            raise SystemExit("Expected current lead form token field")
+        js = js.replace(
+            'turnstile_token:String(data.get("cf-turnstile-response")||"")',
+            'form_token:String(data.get("form_token")||"")', 1
+        )
+        js = js.replace(
+            'payload.turnstile_token', 'payload.form_token'
+        ).replace(
+            'window.BKMResetTurnstile', 'window.BKMRefreshFormToken'
+        ).replace(
+            'Сначала завершите проверку безопасности Cloudflare.',
+            'Проверка формы не завершилась. Обновите страницу и повторите ввод.'
+        )
+        js_path.write_text(js, encoding="utf-8")
 
 # Explicitly do not ship the draft privacy.html or any private credentials.
 (DEST / "robots.txt").write_text(
@@ -234,8 +248,8 @@ else:
         raise SystemExit("CRM feature flag remains off")
 if RUNTIME_TARGET == "timeweb":
     assert (DEST / "api" / "form-config.php").is_file()
-    assert (DEST / "assets" / "turnstile-setup.js").is_file()
-    assert 'id="bkm-turnstile"' in (DEST / "index.html").read_text(encoding="utf-8")
+    assert (DEST / "assets" / "form-setup.js").is_file()
+    assert 'id="bkm-form-token"' in (DEST / "index.html").read_text(encoding="utf-8")
     assert 'type="submit" disabled' in (DEST / "index.html").read_text(encoding="utf-8")
 assert not (DEST / "index.php").exists()
 print(f"Production candidate validated: {len(PAGES)} HTML files; CRM={CRM_RELEASE}; sitemap present.")

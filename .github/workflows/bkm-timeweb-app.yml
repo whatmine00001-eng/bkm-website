@@ -27,11 +27,13 @@ jobs:
           test -s _production_release/index.html
           test -s _production_release/api/lead.php
           test -s _production_release/api/form-config.php
-          test -s _production_release/assets/turnstile-setup.js
+          test -s _production_release/assets/form-setup.js
           grep -q 'name="name"' _production_release/index.html
-          grep -q 'id="bkm-turnstile"' _production_release/index.html
+          grep -q 'id="bkm-form-token"' _production_release/index.html
           grep -q 'type="submit" disabled' _production_release/index.html
-          grep -q '/api/form-config.php' _production_release/assets/turnstile-setup.js
+          grep -q '/api/form-config.php' _production_release/assets/form-setup.js
+          ! grep -q 'cf-turnstile' _production_release/index.html
+          ! grep -q 'turnstile_token' _production_release/assets/lead-form.js
           grep -q 'leadEndpoint: "/api/lead.php"' _production_release/assets/site-config.js
           test ! -e _production_release/config.php
           test ! -e _production_release/.env

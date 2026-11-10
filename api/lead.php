@@ -80,8 +80,7 @@ if ($timewebMode) {
         'enabled' => getenv('BKM_CRM_ENABLED') === 'true',
         'privacy_approved' => true,
         'rate_salt' => (string) (getenv('BKM_RATE_SALT') ?: ''),
-        'bitrix_webhook_url' => (string) (getenv('BKM_BITRIX_WEBHOOK_URL') ?: ''),
-        'turnstile_secret' => (string) (getenv('BKM_TURNSTILE_SECRET') ?: '')
+        'bitrix_webhook_url' => (string) (getenv('BKM_BITRIX_WEBHOOK_URL') ?: '')
     ];
 } else {
     $configFile = getenv('BKM_PRIVATE_CONFIG_PATH') ?: '/home/h/help24pw/.bkm_private/config.php';
@@ -242,35 +241,18 @@ flock($file, LOCK_UN);
 fclose($file);
 
 if ($timewebMode) {
-    // The same Cloudflare Turnstile widget is used on Timeweb, but server-side
-    // verification occurs in PHP in the Russian hosting location.
-    $secret = (string) ($config['turnstile_secret'] ?? '');
-    $token = input($data, 'turnstile_token', 2500);
-    if (strlen($secret) < 8 || $token === '') {
-        reply(503, 'verification_not_configured');
+    // A local HMAC form ticket replaces Cloudflare Turnstile for Russian access.
+    // The public ticket never contains a webhook, password or private salt.
+    $ticket = input($data, 'form_token', 100);
+    $parts = explode('.', $ticket);
+    if (count($parts) !== 2 ||
+        preg_match('/^[0-9]{10}$/D', $parts[0]) !== 1 ||
+        preg_match('/^[a-f0-9]{64}$/D', $parts[1]) !== 1) {
+        reply(422, 'verification_required');
     }
-    if (!function_exists('curl_init')) {
-        reply(503, 'server_unavailable');
-    }
-    $verify = curl_init('https://challenges.cloudflare.com/turnstile/v0/siteverify');
-    curl_setopt_array($verify, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query(['secret' => $secret, 'response' => $token, 'remoteip' => $ip]),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => 9,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_SSL_VERIFYHOST => 2
-    ]);
-    $body = curl_exec($verify);
-    $verifyStatus = curl_getinfo($verify, CURLINFO_RESPONSE_CODE);
-    curl_close($verify);
-    $verified = is_string($body) ? json_decode($body, true) : null;
-    if ($verifyStatus !== 200 || !is_array($verified) ||
-        ($verified['success'] ?? false) !== true ||
-        (string) ($verified['hostname'] ?? '') !== $host) {
+    $age = time() - (int) $parts[0];
+    if ($age < 3 || $age > 3600 ||
+        !hash_equals(hash_hmac('sha256', $parts[0] . '|' . $host, $salt), $parts[1])) {
         reply(422, 'verification_required');
     }
 }
