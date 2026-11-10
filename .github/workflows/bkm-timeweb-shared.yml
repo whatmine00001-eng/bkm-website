@@ -1,0 +1,50 @@
+name: BKM Timeweb virtual hosting release
+on:
+  push:
+    branches: [timeweb/shared-v1]
+    paths:
+      - 'timeweb/**'
+      - 'scripts/**'
+      - 'api/**'
+      - 'index.html'
+      - 'assets/**'
+      - 'approved/**'
+      - '.github/workflows/bkm-timeweb-shared.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build validated staging site from latest BKM source
+        run: |
+          set -euo pipefail
+          python3 timeweb/build-shared.py
+          test -s _production_release/index.html
+          test -s _production_release/api/lead.php
+          test -s _production_release/api/form-config.php
+          grep -q 'id="bkm-form-token"' _production_release/index.html
+          grep -q 'cn705088.tw1.ru' _production_release/api/lead.php
+          grep -q 'noindex' _production_release/index.html
+          ! grep -q 'BKM_BITRIX_WEBHOOK_URL' _production_release/api/lead.php
+          ! grep -q 'Cloudflare Turnstile' _production_release/api/lead.php
+          test ! -e _production_release/config.php
+          test ! -e _production_release/.env
+      - name: Validate PHP syntax
+        run: |
+          php -l _production_release/api/lead.php
+          php -l _production_release/api/form-config.php
+      - name: Create ZIP for Timeweb File Manager
+        run: |
+          cd _production_release
+          zip -r -q ../BKM-Timeweb-ready.zip .
+          cd ..
+          unzip -t BKM-Timeweb-ready.zip | tail -n 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BKM-Timeweb-virtual-hosting
+          path: BKM-Timeweb-ready.zip
+          retention-days: 14
+          if-no-files-found: error
