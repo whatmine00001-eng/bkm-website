@@ -21,18 +21,40 @@ export async function onRequestGet({request,env}){
         return answer("not_configured",503);
     base=parsed.href.replace(/\/$/,"");
   }catch{return answer("not_configured",503);}
+  // Probe the public Bitrix login page separately from authenticated REST.
+  // No tokens, visitor data, or CRM changes are sent to the login page.
+  let rootStatus="unknown";
+  try {
+    const login=await fetch("https://bitrix.24bkm.com/",{
+      method:"GET",redirect:"manual",signal:AbortSignal.timeout(7000)
+    });
+    rootStatus=String(login.status);
+  } catch (error) {
+    rootStatus=["TimeoutError","AbortError"].includes(error?.name)
+       ? "root_timeout" : "root_"+(error?.name==="TypeError"?"typeerror":"othererror");
+  }
   let result, status;
   try{
     const response=await fetch(base+"/crm.lead.fields.json",{
       method:"POST",
       headers:{"content-type":"application/json","accept":"application/json"},
-      body:"{}",redirect:"error",signal:AbortSignal.timeout(9000)
+      body:"{}",redirect:"manual",signal:AbortSignal.timeout(9000)
     });
     status=response.status;
+    if(status>=300 && status<400)
+       return new Response(JSON.stringify({code:"crm_redirect_"+status,rootStatus}),
+          {status:502,headers:HEADERS});
     try{result=await response.json();}
-    catch{return answer("non_json_http_"+String(status),502);}
-  }catch(e){
-    return answer(["TimeoutError","AbortError"].includes(e?.name)?"crm_timeout":"crm_connect_failure",502);
+    catch{
+       return new Response(JSON.stringify({code:"crm_non_json_http_"+status,rootStatus}),
+          {status:502,headers:HEADERS});
+    }
+  }catch(error){
+    const category=["TimeoutError","AbortError"].includes(error?.name)
+      ? "crm_timeout" : error?.name==="TypeError"
+      ? "crm_fetch_typeerror" : "crm_other_exception";
+    return new Response(JSON.stringify({code:category,rootStatus}),
+      {status:502,headers:HEADERS});
   }
   let code;
   if(result?.error) {
@@ -46,5 +68,5 @@ export async function onRequestGet({request,env}){
   else code="crm_unexpected_response";
   cached={code,status:code==="crm_fields_ok"?200:502};
   cachedAt=Date.now();
-  return answer(cached.code,cached.status);
+  return new Response(JSON.stringify({code:cached.code,rootStatus}),{status:cached.status,headers:HEADERS});
 }
