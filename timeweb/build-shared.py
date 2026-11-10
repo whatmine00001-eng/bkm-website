@@ -15,27 +15,18 @@ env["BKM_RUNTIME_TARGET"]="timeweb"
 subprocess.run([sys.executable,str(ROOT/"scripts"/"build-production.py")],env=env,check=True)
 DEST=ROOT/"_production_release"
 endpoint=DEST/"api"/"lead.php"
-s=endpoint.read_text(encoding="utf-8")
-old="$timewebMode = (getenv('BKM_HOSTING_TARGET') === 'timeweb');"
-assert s.count(old)==1
-s=s.replace(old, "$timewebMode = true; // Timeweb shared hosting, fixed server-side",1)
-hosts="getenv('BKM_ALLOWED_HOSTS') ?: '24bkm.com,www.24bkm.com'"
-assert s.count(hosts)==1
-s=s.replace(hosts,"'24bkm.com,www.24bkm.com,cn705088.tw1.ru'",1)
-start=s.index('if ($timewebMode) {\n    // App Platform runs ephemeral containers.')
-end=s.index('if (!is_array($config)',start)
-s=s[:start]+"""$configFile = dirname(__DIR__, 2) . '/.bkm_private/config.php';
-if (!is_file($configFile) || !is_readable($configFile)) {
-    reply(503, 'not_configured');
-}
-$config = require $configFile;
-"""+s[end:]
-rate="""$rateDirectory = $timewebMode
-    ? sys_get_temp_dir() . '/bkm_rate'
-    : dirname($configFile) . '/rate';"""
-assert s.count(rate)==1
-s=s.replace(rate,"$rateDirectory = dirname($configFile) . '/rate';",1)
-endpoint.write_text(s,encoding="utf-8")
+shutil.copy2(ROOT/"timeweb"/"shared-lead.php",endpoint)
+shutil.copy2(ROOT/"timeweb"/"shared-lead-form.js",DEST/"assets"/"lead-form.js")
+home=DEST/"index.html"
+markup=home.read_text(encoding="utf-8")
+markup=re.sub(r'\s*aria-describedby="bkm-phone-hint"','',markup)
+markup=re.sub(r'<span class="bkm-field-hint" id="bkm-phone-hint">.*?</span>','',markup)
+markup=markup.replace('assets/lead-form.js','assets/lead-form.js?v=20261110b')
+markup=markup.replace('assets/form-setup.js','assets/form-setup.js?v=20261110b')
+home.write_text(markup,encoding="utf-8")
+private=DEST/".bkm_private"
+private.mkdir(exist_ok=True)
+(private/".htaccess").write_text("Require all denied\nDeny from all\n",encoding="utf-8")
 shutil.copy2(ROOT/"timeweb"/"shared-form-config.php",DEST/"api"/"form-config.php")
 if os.environ.get("BKM_SHARED_PRODUCTION","false").lower()!="true":
     # Do not accidentally index the temporary test domain.
@@ -49,5 +40,5 @@ assert (DEST/"assets"/"form-setup.js").exists()
 assert (DEST/"api"/"form-config.php").exists()
 assert 'bkm-form-token' in (DEST/"index.html").read_text(encoding="utf-8")
 assert "cn705088.tw1.ru" in endpoint.read_text(encoding="utf-8")
-assert not (DEST/".bkm_private").exists()
+assert not (DEST/".bkm_private"/"config.php").exists()
 print("TIMEWEB_SHARED_RELEASE_OK: PHP 8.2 files ready; no secrets; technical host allowed")

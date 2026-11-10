@@ -18,8 +18,9 @@ function unavailable(){
  message("Форма временно недоступна. Напишите на info@24bkm.com или позвоните 8 800 707-79-02.","error");
 }
 async function prepare(){
+ const keepSuccess=status && status.dataset.type==="success";
  button.disabled=true;token.value="";
- message("Проверяем готовность формы…");
+ if(!keepSuccess)message("Проверяем готовность формы…");
  try{
    const controller=new AbortController();
    const timeout=setTimeout(()=>controller.abort(),10000);
@@ -39,8 +40,8 @@ async function prepare(){
    await new Promise(resolve=>setTimeout(resolve,3100));
    if(form.dataset.deliveryUnconfirmed==="true")return;
    button.disabled=false;
-   message("Заполните поля и отправьте заявку — она поступит менеджеру БКМ.","info");
- }catch(_){unavailable();}
+   if(!keepSuccess)message("Заполните поля и отправьте заявку — она поступит менеджеру БКМ.","info");
+ }catch(_){if(!keepSuccess)unavailable();}
 }
 window.BKMRefreshFormToken=function(){
  if(form.dataset.deliveryUnconfirmed==="true")return;

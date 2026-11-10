@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-// Timeweb shared hosting: read secret settings OUTSIDE public_html.
+// Timeweb site isolation: PHP-only private configuration, denied by Apache.
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
@@ -12,7 +12,7 @@ function fail(int $status = 503): void {
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') fail(405);
 $host = strtolower(preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
 if (!in_array($host, ['cn705088.tw1.ru','24bkm.com','www.24bkm.com'], true)) fail();
-$configFile = dirname(__DIR__, 2) . '/.bkm_private/config.php';
+$configFile = dirname(__DIR__) . '/.bkm_private/config.php';
 if (!is_readable($configFile)) fail();
 $config = require $configFile;
 if (!is_array($config) || ($config['enabled'] ?? false) !== true ||
