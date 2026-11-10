@@ -127,8 +127,19 @@ export async function onRequestPost({request,env}) {
     let result;
     try { result=await crm.json(); }
     catch { return reply(502,"crm_response_not_json"); }
+    if(result?.error){
+      const failure=String(result.error).toUpperCase();
+      // These codes reveal a category only, never raw CRM messages or secrets.
+      if(/INVALID_CREDENTIALS|INVALID_TOKEN|EXPIRED_TOKEN|NO_AUTH_FOUND/.test(failure))
+        return reply(502,"crm_auth_rejected");
+      if(/ACCESS_DENIED|INSUFFICIENT_SCOPE|USER_ACCESS_ERROR|ACCESS_ERROR/.test(failure))
+        return reply(502,"crm_access_denied");
+      if(/METHOD_NOT_FOUND|REST_MODULE_NOT_INSTALLED/.test(failure))
+        return reply(502,"crm_method_unavailable");
+      return reply(502,"crm_rejected");
+    }
     const id=Number(result?.result);
-    if(result?.error || !Number.isSafeInteger(id) || id<=0)
+    if(!Number.isSafeInteger(id) || id<=0)
       return reply(502,"crm_invalid_response");
     return reply(200,"lead_created",{lead_id:id});
   } catch (error) {

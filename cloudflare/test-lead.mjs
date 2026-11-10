@@ -140,3 +140,28 @@ test("Kazakhstan code produces normalized +7 CRM phone",async()=>{
    assert.equal(res.status,200);
  }finally{globalThis.fetch=original;}
 });
+
+test("CRM webhook permission failure is reported without leaking server details",async()=>{
+  const old=globalThis.fetch;
+  globalThis.fetch=async url=>String(url).includes("siteverify")
+    ? new Response('{"success":true,"hostname":"24bkm.com"}',{status:200})
+    : new Response('{"error":"ACCESS_DENIED","error_description":"private internal details"}',{status:200});
+  try{
+    const res=await api.onRequestPost({request:request(),env});
+    assert.equal(res.status,502);
+    const body=await res.text();
+    assert.deepEqual(JSON.parse(body),{ok:false,code:"crm_access_denied"});
+    assert.ok(!body.includes("private"));
+  } finally{globalThis.fetch=old}
+});
+test("Invalid webhook credentials yield a safe auth rejection code",async()=>{
+  const old=globalThis.fetch;
+  globalThis.fetch=async url=>String(url).includes("siteverify")
+    ? new Response('{"success":true,"hostname":"24bkm.com"}',{status:200})
+    : new Response('{"error":"INVALID_CREDENTIALS","error_description":"sensitive"}',{status:200});
+  try{
+    const res=await api.onRequestPost({request:request(),env});
+    assert.equal(res.status,502);
+    assert.deepEqual(await res.json(),{ok:false,code:"crm_auth_rejected"});
+  }finally{globalThis.fetch=old}
+});
