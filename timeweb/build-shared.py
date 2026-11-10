@@ -43,6 +43,16 @@ else:
         page.write_text(value,encoding="utf-8")
 privacy=DEST/"privacy.html"
 privacy.write_text(re.sub(r'<p>Для размещения сайта применяется .*?</p>', '<p>Для размещения сайта применяется хостинг Timeweb: АО «ТаймВэб», ИНН 7810353960, ОГРН 1247800127112; 196006, г. Санкт-Петербург, ул. Заставская, д. 22, корп. 2, лит. А. В части обработки по поручению Оператора допускаются техническое размещение и хранение передаваемых через сайт данных, обеспечение доступности и безопасности инфраструктуры. Обработка должна быть оформлена договором или поручением с требованиями части 3 статьи 6 Закона № 152-ФЗ.</p>', privacy.read_text(encoding="utf-8")),encoding="utf-8")
+
+# Keep service names consistent across cards, detail pages and form values.
+service_names = {"Логистика и склад":"Складские услуги","Агентские услуги":"Агентирование","Складская логистика":"Складские услуги","складская логистика":"складские услуги"}
+service_names["%D0%A1%D0%BA%D0%BB%D0%B0%D0%B4%D1%81%D0%BA%D0%B0%D1%8F%20%D0%BB%D0%BE%D0%B3%D0%B8%D1%81%D1%82%D0%B8%D0%BA%D0%B0"] = "%D0%A1%D0%BA%D0%BB%D0%B0%D0%B4%D1%81%D0%BA%D0%B8%D0%B5%20%D1%83%D1%81%D0%BB%D1%83%D0%B3%D0%B8"
+for page in DEST.glob("*.html"):
+    value=page.read_text(encoding="utf-8")
+    for before, after in service_names.items():
+        value=value.replace(before, after)
+    page.write_text(value,encoding="utf-8")
+
 assert (DEST/"assets"/"form-setup.js").exists()
 assert (DEST/"api"/"form-config.php").exists()
 assert 'bkm-form-token' in (DEST/"index.html").read_text(encoding="utf-8")
