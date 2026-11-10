@@ -28,7 +28,7 @@ private=DEST/".bkm_private"
 private.mkdir(exist_ok=True)
 (private/".htaccess").write_text("Require all denied\nDeny from all\n",encoding="utf-8")
 shutil.copy2(ROOT/"timeweb"/"shared-form-config.php",DEST/"api"/"form-config.php")
-if os.environ.get("BKM_SHARED_PRODUCTION","false").lower()!="true":
+if os.environ.get("BKM_SHARED_PRODUCTION","true").lower()!="true":
     # Do not accidentally index the temporary test domain.
     (DEST/"robots.txt").write_text("User-agent: *\nDisallow: /\n",encoding="utf-8")
     for page in DEST.glob("*.html"):
@@ -36,9 +36,17 @@ if os.environ.get("BKM_SHARED_PRODUCTION","false").lower()!="true":
         if 'name="robots"' not in value:
             value=re.sub(r'</head>', '<meta name="robots" content="noindex,nofollow"></head>',value,count=1,flags=re.I)
         page.write_text(value,encoding="utf-8")
+else:
+    (DEST/"robots.txt").write_text("User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /.bkm_private/\nSitemap: https://24bkm.com/sitemap.xml\n",encoding="utf-8")
+    for page in DEST.glob("*.html"):
+        value=page.read_text(encoding="utf-8").replace('<meta name="robots" content="noindex,nofollow">','')
+        page.write_text(value,encoding="utf-8")
+privacy=DEST/"privacy.html"
+privacy.write_text(re.sub(r'<p>Для размещения сайта применяется .*?</p>', '<p>Для размещения сайта применяется хостинг Timeweb: АО «ТаймВэб», ИНН 7810353960, ОГРН 1247800127112; 196006, г. Санкт-Петербург, ул. Заставская, д. 22, корп. 2, лит. А. В части обработки по поручению Оператора допускаются техническое размещение и хранение передаваемых через сайт данных, обеспечение доступности и безопасности инфраструктуры. Обработка должна быть оформлена договором или поручением с требованиями части 3 статьи 6 Закона № 152-ФЗ.</p>', privacy.read_text(encoding="utf-8")),encoding="utf-8")
 assert (DEST/"assets"/"form-setup.js").exists()
 assert (DEST/"api"/"form-config.php").exists()
 assert 'bkm-form-token' in (DEST/"index.html").read_text(encoding="utf-8")
 assert "cn705088.tw1.ru" in endpoint.read_text(encoding="utf-8")
 assert not (DEST/".bkm_private"/"config.php").exists()
 print("TIMEWEB_SHARED_RELEASE_OK: PHP 8.2 files ready; no secrets; technical host allowed")
+

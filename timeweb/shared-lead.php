@@ -26,12 +26,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 }
 
 $timewebMode = true; // Timeweb shared hosting, fixed server-side
-$https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTPS'] ?? '') === '1';
-// Timeweb App Platform terminates HTTPS at its Caddy reverse proxy.
-// Trust this header only for deployments explicitly built for Timeweb Cloud.
-if ($timewebMode && strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https') {
-    $https = true;
-}
+$https = in_array(strtolower((string) ($_SERVER['HTTPS'] ?? '')), ['on', '1'], true);
 if (!$https) {
     reply(426, 'https_required');
 }
@@ -195,13 +190,6 @@ if (!is_dir($rateDirectory) && !@mkdir($rateDirectory, 0700, true) && !is_dir($r
     reply(503, 'server_unavailable');
 }
 $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-if ($timewebMode) {
-    // Timeweb Caddy supplies the original client IP via reverse proxy.
-    $forwarded = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
-    if (filter_var($forwarded, FILTER_VALIDATE_IP)) {
-        $ip = $forwarded;
-    }
-}
 $rateId = hash('sha256', $ip . $salt);
 $privatePrefix = "<?php exit; ?>\n";
 $file = @fopen($rateDirectory . '/' . $rateId . '.php', 'c+');
