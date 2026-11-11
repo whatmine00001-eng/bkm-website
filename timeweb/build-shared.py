@@ -53,6 +53,10 @@ for page in DEST.glob("*.html"):
         value=value.replace(before, after)
     page.write_text(value,encoding="utf-8")
 
+# Standalone public editor: self-contained original brand logo, no secrets.
+# The public version has generic example contacts, not employees' phone numbers.
+shutil.copy2(ROOT/"signature-builder.html",DEST/"signature-builder.html")
+assert (DEST/"signature-builder.html").stat().st_size < 1024 * 1024
 assert (DEST/"assets"/"form-setup.js").exists()
 assert (DEST/"api"/"form-config.php").exists()
 assert 'bkm-form-token' in (DEST/"index.html").read_text(encoding="utf-8")
