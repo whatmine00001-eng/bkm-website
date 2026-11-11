@@ -31,7 +31,10 @@ jobs:
           test -s _production_release/api/form-config.php
           grep -q 'id="bkm-form-token"' _production_release/index.html
           grep -q 'cn705088.tw1.ru' _production_release/api/lead.php
-          grep -q 'noindex' _production_release/index.html
+          # The primary company website is indexable in production;
+          # the utility editor should remain link-only and non-indexed.
+          ! grep -q 'noindex' _production_release/index.html
+          grep -q 'noindex' _production_release/signature-builder.html
           ! grep -q 'BKM_BITRIX_WEBHOOK_URL' _production_release/api/lead.php
           ! grep -q 'Cloudflare Turnstile' _production_release/api/lead.php
           test ! -e _production_release/config.php
