@@ -24,6 +24,8 @@ jobs:
           set -euo pipefail
           python3 timeweb/build-shared.py
           test -s _production_release/index.html
+          grep -q 'bkm-logo-lockup' _production_release/index.html
+          test -s _production_release/assets/bkm-logo-clarity.css
           test -s _production_release/signature-builder.html
           grep -q 'Конструктор email-подписи' _production_release/signature-builder.html
           grep -q 'data-preset="example"' _production_release/signature-builder.html
