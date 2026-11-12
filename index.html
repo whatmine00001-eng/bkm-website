@@ -10,6 +10,8 @@
 <link rel="icon" type="image/svg+xml" href="assets/bkm-symbol.svg">
 <link rel="stylesheet" href="assets/home-redesign.css">
 <link rel="stylesheet" href="assets/home-brand-final.css">
+<link rel="stylesheet" href="assets/bkm-form.css">
+<link rel="stylesheet" href="assets/bkm-logo-clarity.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://images.unsplash.com">
@@ -36,7 +38,7 @@
 <div class="top-bar"><div class="container top-bar__inner"><span>Международная логистика и таможенное сопровождение</span><div class="top-bar__links"><a href="tel:+78007077902"><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg> 8 800 707-79-02</a><a href="mailto:info@24bkm.com"><svg class="icon" aria-hidden="true"><use href="#i-mail"></use></svg> info@24bkm.com</a></div></div></div>
 <header class="site-header">
   <div class="container header-inner">
-    <a class="brand" href="index.html" aria-label="БКМ — главная страница"><img src="assets/bkm-header.svg" alt="БКМ — сложное делаем простым" width="233" height="74"></a>
+    <a class="brand bkm-logo-lockup" href="index.html" aria-label="БКМ — Сложное делаем простым"><span class="bkm-logo-lockup__art"><img src="assets/bkm-header.svg" alt="БКМ" width="763" height="209"></span><span class="bkm-logo-lockup__motto">СЛОЖНОЕ ДЕЛАЕМ <strong>ПРОСТЫМ</strong></span></a>
     <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Открыть меню"><svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg></button>
     <nav class="nav" id="site-nav" aria-label="Основная навигация" data-open="false">
       <a href="#services">Услуги</a><a href="#advantages">Преимущества</a><a href="#process">Как работаем</a><a href="news.html">Новости импорта</a><a href="#contact">Контакты</a>
@@ -49,7 +51,7 @@
   <div class="hero__background" aria-hidden="true"></div><div class="hero__angle" aria-hidden="true"></div>
   <div class="container hero__inner">
     <div class="hero__content">
-      <img class="hero__brand" src="assets/bkm-header.svg" width="520" height="142" alt="БКМ — Сложное делаем простым" fetchpriority="high">
+      <div class="hero__brand bkm-logo-lockup" role="img" aria-label="БКМ — Сложное делаем простым"><span class="bkm-logo-lockup__art"><img src="assets/bkm-header.svg" alt="" aria-hidden="true" width="763" height="209" fetchpriority="high"></span><span class="bkm-logo-lockup__motto" aria-hidden="true">СЛОЖНОЕ ДЕЛАЕМ <strong>ПРОСТЫМ</strong></span></div>
       <div class="eyebrow">БКМ · Надёжные импортные решения</div>
       <h1 id="hero-title">Для нас <span class="accent">нет невозможного</span></h1>
       <p class="hero__lead">Прозрачные импортные поставки любой сложности: международная логистика, таможенное оформление и сопровождение в одном окне — с учётом действующих ограничений и требований.</p>
@@ -61,7 +63,7 @@
 </section>
 <div class="container stats" aria-label="О компании">
  <div class="stats__inner">
-  <div class="stat"><span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg></span><div><strong class="stat__number">2011*</strong><span class="stat__label">Начало работы</span></div></div>
+  <div class="stat"><span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg></span><div><strong class="stat__number">2011</strong><span class="stat__label">Начало работы</span></div></div>
   <div class="stat"><span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-gear"></use></svg></span><div><strong class="stat__number">5</strong><span class="stat__label">Направлений услуг</span></div></div>
   <div class="stat"><span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg></span><div><strong class="stat__number">B2B</strong><span class="stat__label">Решения для бизнеса</span></div></div>
  </div>
@@ -93,25 +95,80 @@
  <div class="container contact__inner">
   <div class="contact__content"><div class="eyebrow">Связаться с нами</div><h2 id="contact-title">Получите <em>расчёт</em><br>вашей поставки</h2><p class="contact__lead">Расскажите о грузе, направлении и сроках. Обсудим оптимальный вариант доставки и необходимые документы.</p><div class="contact__methods"><a href="tel:+78007077902"><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg> 8 800 707-79-02</a><a href="mailto:info@24bkm.com"><svg class="icon" aria-hidden="true"><use href="#i-mail"></use></svg> info@24bkm.com</a></div></div>
   <form class="form" id="bkm-lead-form">
-   <h3>Обсудить поставку</h3><p class="form-intro">Заполните данные для подготовки обращения. Поля * обязательны.</p>
+   <h3>Обсудить поставку</h3><p class="form-intro">Оставьте контакты и кратко опишите задачу. Мы свяжемся с вами для уточнения деталей.</p>
    <div class="fields">
-    <label class="field">Ваше имя *<input name="name" required minlength="2" maxlength="120" autocomplete="name" placeholder="Как к вам обращаться"></label>
-    <label class="field">Телефон *<input name="phone" required minlength="7" maxlength="36" autocomplete="tel" type="tel" placeholder="+7 999 000 00 00"></label>
-    <label class="field">Компания<input name="company" maxlength="160" autocomplete="organization" placeholder="Название организации"></label>
-    <label class="field">Email<input name="email" type="email" maxlength="160" autocomplete="email" placeholder="email@example.com"></label>
-    <label class="field full">Направление<select name="service" required>
-     <option>Международные перевозки</option><option>Таможенное оформление</option><option>Экспедирование</option><option>Логистика и склад</option><option>Сборные грузы</option><option>Финансовое сопровождение</option><option>Другое</option>
-    </select></label>
-    <label class="field">Откуда<input name="origin" maxlength="150" placeholder="Город, страна"></label>
-    <label class="field">Куда<input name="destination" maxlength="150" placeholder="Город, страна"></label>
-    <label class="field full">Тип и объём груза<input name="cargo" maxlength="180" placeholder="Наименование, вес, объём"></label>
-    <label class="field full">Описание задачи<textarea name="details" maxlength="1600" rows="3" placeholder="Особенности перевозки, сроки, документы"></textarea></label>
+    <label class="field full" for="bkm-name">Как к вам обращаться *
+      <input id="bkm-name" name="name" type="text" required minlength="2" maxlength="120"
+        autocomplete="name" placeholder="Ваше имя" title="Укажите имя для обращения">
+    </label>
+    <div class="field full"><label for="bkm-phone">Телефон *</label>
+     <div class="bkm-phone-row">
+      <select name="country" id="bkm-country" aria-label="Страна и телефонный код" required>
+          <option value="RU" selected>🇷🇺 Россия (+7)</option>
+          <option value="KZ">🇰🇿 Казахстан (+7)</option>
+          <option value="BY">🇧🇾 Беларусь (+375)</option>
+          <option value="CN">🇨🇳 Китай (+86)</option>
+          <option value="IN">🇮🇳 Индия (+91)</option>
+          <option value="KR">🇰🇷 Южная Корея (+82)</option>
+          <option value="AE">🇦🇪 ОАЭ (+971)</option>
+          <option value="US">🇺🇸 США (+1)</option>
+          <option value="CA">🇨🇦 Канада (+1)</option>
+          <option value="DE">🇩🇪 Германия (+49)</option>
+          <option value="GB">🇬🇧 Великобритания (+44)</option>
+          <option value="FR">🇫🇷 Франция (+33)</option>
+          <option value="IT">🇮🇹 Италия (+39)</option>
+          <option value="TR">🇹🇷 Турция (+90)</option>
+          <option value="PL">🇵🇱 Польша (+48)</option>
+          <option value="KG">🇰🇬 Кыргызстан (+996)</option>
+          <option value="UZ">🇺🇿 Узбекистан (+998)</option>
+          <option value="AM">🇦🇲 Армения (+374)</option>
+          <option value="GE">🇬🇪 Грузия (+995)</option>
+          <option value="AZ">🇦🇿 Азербайджан (+994)</option>
+          <option value="TJ">🇹🇯 Таджикистан (+992)</option>
+          <option value="MD">🇲🇩 Молдова (+373)</option>
+          <option value="NL">🇳🇱 Нидерланды (+31)</option>
+          <option value="ES">🇪🇸 Испания (+34)</option>
+          <option value="PT">🇵🇹 Португалия (+351)</option>
+          <option value="CH">🇨🇭 Швейцария (+41)</option>
+          <option value="BE">🇧🇪 Бельгия (+32)</option>
+          <option value="LT">🇱🇹 Литва (+370)</option>
+          <option value="LV">🇱🇻 Латвия (+371)</option>
+          <option value="EE">🇪🇪 Эстония (+372)</option>
+          <option value="JP">🇯🇵 Япония (+81)</option>
+          <option value="SG">🇸🇬 Сингапур (+65)</option>
+          <option value="TH">🇹🇭 Таиланд (+66)</option>
+          <option value="VN">🇻🇳 Вьетнам (+84)</option>
+      </select>
+      <input id="bkm-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national"
+        required minlength="10" maxlength="10" pattern="[0-9]{10}" placeholder="9991234567"
+        aria-describedby="bkm-phone-hint">
+     </div>
+     <span class="bkm-field-hint" id="bkm-phone-hint">10 цифр без +7, пробелов и скобок</span>
+    </div>
+    <label class="field full" for="bkm-email">Email *
+      <input id="bkm-email" name="email" type="email" inputmode="email" autocomplete="email"
+       required maxlength="160" pattern="[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}"
+       placeholder="name@company.ru" title="Укажите адрес в формате name@company.ru" aria-describedby="bkm-email-hint">
+      <span class="bkm-field-hint" id="bkm-email-hint" aria-live="polite">Пример: name@company.ru</span>
+    </label>
+    <label class="field full" for="bkm-service">Вид услуги *
+      <select id="bkm-service" name="service" required>
+       <option value="" disabled selected>Выберите услугу</option>
+       <option value="Международная перевозка">Международная перевозка</option><option value="Таможенное оформление">Таможенное оформление</option><option value="Логистика и склад">Логистика и склад</option><option value="Агентские услуги">Агентские услуги</option><option value="Другое">Другое</option>
+      </select>
+    </label>
+    <label class="field full" for="bkm-details">Комментарии
+      <textarea id="bkm-details" name="details" maxlength="1600" rows="4"
+        placeholder="Маршрут, груз, сроки или другие пожелания"></textarea>
+    </label>
     <div class="bkm-trap" aria-hidden="true"><label>Сайт<input name="website" tabindex="-1" autocomplete="off"></label></div>
-    <label class="field full bkm-consent"><span><input name="consent" type="checkbox" required> Даю <a href="consent.html" target="_blank" rel="noopener noreferrer">согласие на обработку персональных данных</a> для ответа на обращение. С <a href="privacy.html" target="_blank" rel="noopener noreferrer">Политикой обработки персональных данных</a> можно ознакомиться отдельно.</span></label>
+    <label class="field full bkm-consent"><input name="consent" type="checkbox" required>
+     <span class="bkm-consent__copy">Даю <a href="consent.html" target="_blank" rel="noopener noreferrer">согласие на обработку персональных данных</a> для ответа на обращение. С <a href="privacy.html" target="_blank" rel="noopener noreferrer">Политикой обработки персональных данных</a> ознакомлен(а).</span>
+    </label>
    </div>
-   <div class="form__actions"><button class="btn" type="submit">Подготовить письмо по заявке <svg class="icon" aria-hidden="true"><use href="#i-arrow"></use></svg></button></div>
+   <div class="form__actions"><button class="btn" type="submit">Отправить заявку <svg class="icon" aria-hidden="true"><use href="#i-arrow"></use></svg></button></div>
    <p class="bkm-status" id="bkm-form-status" role="status" aria-live="polite"></p>
-   <p class="note">На этапе тестирования автоматическая отправка в CRM выключена. Для отправки обращения откроется ваша почтовая программа.</p>
+   <p class="note">Используем ваши контакты только для ответа на заявку.</p>
   </form>
  </div>
 </section></div>
@@ -120,7 +177,7 @@
  <a class="footer__brand" href="index.html" aria-label="БКМ — на главную"><img src="assets/bkm-logo-dark.svg" alt="БКМ — Сложное делаем простым" width="204" height="64"></a>
  <nav class="footer__links" aria-label="Навигация в подвале"><a href="services.html">Услуги</a><a href="#advantages">Преимущества</a><a href="#process">Как работаем</a><a href="news.html">Новости</a><a href="#contact">Контакты</a></nav>
  <div class="footer__contact"><a href="tel:+78007077902">8 800 707-79-02</a><a href="mailto:info@24bkm.com">info@24bkm.com</a></div>
- </div><div class="footer__bottom"><p>© 2026 БКМ. Информация об услугах не является публичной офертой.</p><p>*Год начала работы требует подтверждения.</p></div></div></footer>
+ </div><div class="footer__bottom"><p>© 2026 БКМ. Информация об услугах не является публичной офертой.</p><p>Работаем с 2011 года</p></div></div></footer>
 <script src="assets/home.js" defer></script>
 <script src="assets/site-config.js" defer></script>
 <script src="assets/analytics.js" defer></script>

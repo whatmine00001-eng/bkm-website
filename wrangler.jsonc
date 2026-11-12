@@ -1,8 +1,8 @@
 {
   "name": "bkm-website",
-  "compatibility_date": "2026-10-21",
-  "assets": {
-    "directory": "."
-  },
-  "previews": {}
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-11-06",
+  "vars": {
+    "BKM_CRM_ENABLED": "true"
+  }
 }

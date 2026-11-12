@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * BKM lead receiver — Beget PHP 8+, same-origin POST only.
- * Secret configuration: /home/h/help24pw/.bkm_private/config.php (outside public_html).
+ * Secret configuration (outside public_html): BKM_PRIVATE_CONFIG_PATH env,
+ * defaulting to /home/h/help24pw/.bkm_private/config.php on Beget.
  * Test HTTP website must NEVER accept customer information.
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -59,7 +60,7 @@ if (!is_array($data)) {
     reply(400, 'invalid_json');
 }
 
-$configFile = '/home/h/help24pw/.bkm_private/config.php';
+$configFile = getenv('BKM_PRIVATE_CONFIG_PATH') ?: '/home/h/help24pw/.bkm_private/config.php';
 if (!is_file($configFile) || !is_readable($configFile)) {
     reply(503, 'not_configured');
 }
@@ -93,29 +94,89 @@ if (($data['consent'] ?? false) !== true) {
     reply(422, 'consent_required');
 }
 $name = input($data, 'name', 120);
-$company = input($data, 'company', 160);
-$phone = input($data, 'phone', 36);
-$email = input($data, 'email', 160);
-$service = input($data, 'service', 100);
-$from = input($data, 'origin', 150);
-$to = input($data, 'destination', 150);
-$cargo = input($data, 'cargo', 180);
-$details = input($data, 'details', 1600);
-if (mb_strlen($name) < 2 || mb_strlen($phone) < 7 ||
-    preg_match('/^[+0-9 ()\-]{7,36}$/', $phone) !== 1 ||
-    strlen(preg_replace('/\D/', '', $phone)) < 7 ||
-    ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+if (mb_strlen($name) < 2) {
     reply(422, 'invalid_fields');
 }
+$country = strtoupper(input($data, 'country', 2));
+$phoneRaw = input($data, 'phone', 20);
+$email = input($data, 'email', 160);
+$service = input($data, 'service', 100);
+$details = input($data, 'details', 1600);
+$phoneRules = [
+    'RU' => ['7', 10, 10],
+    'KZ' => ['7', 10, 10],
+    'BY' => ['375', 9, 9],
+    'CN' => ['86', 11, 11],
+    'IN' => ['91', 10, 10],
+    'KR' => ['82', 9, 10],
+    'AE' => ['971', 9, 9],
+    'US' => ['1', 10, 10],
+    'CA' => ['1', 10, 10],
+    'DE' => ['49', 7, 13],
+    'GB' => ['44', 9, 10],
+    'FR' => ['33', 9, 9],
+    'IT' => ['39', 8, 12],
+    'TR' => ['90', 10, 10],
+    'PL' => ['48', 9, 9],
+    'KG' => ['996', 9, 9],
+    'UZ' => ['998', 9, 9],
+    'AM' => ['374', 8, 8],
+    'GE' => ['995', 9, 9],
+    'AZ' => ['994', 9, 9],
+    'TJ' => ['992', 9, 9],
+    'MD' => ['373', 8, 8],
+    'NL' => ['31', 9, 9],
+    'ES' => ['34', 9, 9],
+    'PT' => ['351', 9, 9],
+    'CH' => ['41', 9, 9],
+    'BE' => ['32', 8, 9],
+    'LT' => ['370', 8, 8],
+    'LV' => ['371', 8, 8],
+    'EE' => ['372', 7, 8],
+    'JP' => ['81', 9, 10],
+    'SG' => ['65', 8, 8],
+    'TH' => ['66', 9, 9],
+    'VN' => ['84', 9, 10]
+];
+$rule = $phoneRules[$country] ?? null;
+if ($rule === null || preg_match('/^[0-9]+$/D', $phoneRaw) !== 1 ||
+    strlen($phoneRaw) < $rule[1] || strlen($phoneRaw) > $rule[2] ||
+    strlen($rule[0] . $phoneRaw) > 15) {
+    reply(422, 'invalid_phone');
+}
+$phone = '+' . $rule[0] . $phoneRaw;
+$emailParts = explode('@', $email);
+$validEmail = count($emailParts) === 2 &&
+    preg_match('/^[A-Za-z0-9._%+\\-]+$/D', $emailParts[0]) === 1 &&
+    $emailParts[0][0] !== '.' &&
+    substr($emailParts[0], -1) !== '.' &&
+    strpos($emailParts[0], '..') === false &&
+    filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+if ($validEmail) {
+    $labels = explode('.', $emailParts[1]);
+    $validEmail = count($labels) >= 2 &&
+        preg_match('/^[A-Za-z]{2,24}$/D', end($labels)) === 1;
+    foreach ($labels as $label) {
+        if (preg_match('/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/D', $label) !== 1) {
+            $validEmail = false;
+            break;
+        }
+    }
+}
+if (!$validEmail) {
+    reply(422, 'invalid_email');
+}
 if (!in_array($service, [
-    'Международные перевозки', 'Таможенное оформление',
-    'Экспедирование', 'Логистика и склад', 'Сборные грузы',
-    'Финансовое сопровождение', 'Другое'
+    'Международная перевозка',
+    'Таможенное оформление',
+    'Логистика и склад',
+    'Агентские услуги',
+    'Другое'
 ], true)) {
     reply(422, 'invalid_service');
 }
 
-$rateDirectory = '/home/h/help24pw/.bkm_private/rate';
+$rateDirectory = dirname($configFile) . '/rate';
 if (!is_dir($rateDirectory) && !@mkdir($rateDirectory, 0700, true) && !is_dir($rateDirectory)) {
     reply(503, 'server_unavailable');
 }
@@ -164,38 +225,28 @@ foreach (['source','medium','campaign','term','content'] as $key) {
 }
 $path = input($data, 'page', 200);
 $comments = implode("\n", [
-    'Услуга: ' . $service,
-    'Маршрут: ' . $from . ' → ' . $to,
-    'Груз: ' . $cargo,
-    'Пожелания: ' . $details,
+    'Вид услуги: ' . $service,
+    'Страна телефона: ' . $country,
+    'Комментарии: ' . $details,
     'Страница сайта: ' . $path,
     'Согласие на обработку данных на сайте: ' . gmdate('c'),
-    'Редакция согласия: bkm-consent-2026-10-30-v1',
+    'Редакция согласия: bkm-consent-uploaded-2026-11-06-v1',
     'Политика: https://24bkm.com/privacy.html'
 ]);
 $fields = [
     'TITLE' => 'Сайт БКМ — ' . $service,
     'NAME' => $name,
-    'COMPANY_TITLE' => $company,
     'SOURCE_ID' => 'WEB',
     'SOURCE_DESCRIPTION' => 'Сайт БКМ (Beget)',
     'OPENED' => 'N',
     'STATUS_ID' => 'NEW',
+    'ASSIGNED_BY_ID' => 7,
     'PHONE' => [['VALUE' => $phone, 'VALUE_TYPE' => 'WORK']],
+    'EMAIL' => [['VALUE' => $email, 'VALUE_TYPE' => 'WORK']],
     'COMMENTS' => $comments
 ] + $utms;
-if ($email !== '') {
-    $fields['EMAIL'] = [['VALUE' => $email, 'VALUE_TYPE' => 'WORK']];
-}
 // Optional routing by the company's Bitrix24 administrator.
 // Values come only from server-side config; site visitors cannot change them.
-if (isset($config['assigned_by_id'])) {
-    $assigned = filter_var($config['assigned_by_id'], FILTER_VALIDATE_INT);
-    if ($assigned === false || (int) $assigned <= 0) {
-        reply(503, 'crm_assignment_not_configured');
-    }
-    $fields['ASSIGNED_BY_ID'] = (int) $assigned;
-}
 if (isset($config['lead_status_id'])) {
     $statusId = (string) $config['lead_status_id'];
     if (!preg_match('/^[A-Za-z0-9_:-]{1,60}$/D', $statusId)) {

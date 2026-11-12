@@ -4,6 +4,7 @@
  */
 window.BKM_SITE_CONFIG = Object.freeze({
   formsEnabled: false,
+  leadEndpoint: "/api/lead.php",
   analyticsEnabled: false,
   metrikaId: null
 });
