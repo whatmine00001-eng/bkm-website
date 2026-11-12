@@ -1,47 +1,6 @@
-/* BKM logo legibility: preserve original corporate artwork, typeset the motto as real text. */
-.site-header .brand.bkm-logo-lockup {
-  display:flex; flex-direction:column; align-items:stretch; justify-content:center;
-  flex:0 0 auto; width:251px; max-width:100%; min-width:0; text-decoration:none;
-}
-.bkm-logo-lockup__art {
-  display:block; width:100%; aspect-ratio:763 / 174; overflow:hidden; position:relative;
-}
-.bkm-logo-lockup__art img,
-.site-header .brand.bkm-logo-lockup .bkm-logo-lockup__art img {
-  display:block; width:100% !important; height:auto !important; max-width:none !important;
-  object-fit:contain; transform:none; filter:none;
-}
-.bkm-logo-lockup__motto {
-  display:flex; justify-content:center; align-items:center; gap:.32em; width:100%;
-  white-space:nowrap; font-family:Arial,Helvetica,sans-serif; font-size:12.4px;
-  font-style:normal; font-weight:800; line-height:1.18; letter-spacing:.028em;
-  color:#183d33; margin-top:1px; text-transform:uppercase;
-  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-}
-.bkm-logo-lockup__motto strong {color:#db7424; font-weight:900;}
-.site-header .header-inner {align-items:center;}
-.hero .hero__brand.bkm-logo-lockup {
-  display:block; box-sizing:border-box; width:min(465px,100%);
-  height:auto; background:#fff !important; color:#183d33;
-  padding:15px 20px 16px; margin:0 0 23px; border-left:4px solid #ff7900;
-  border-radius:3px; box-shadow:0 18px 44px rgba(0,0,0,.25);
-}
-.hero .bkm-logo-lockup__motto {
-  font-size:clamp(14px,1.34vw,17px); line-height:1.2;
-  letter-spacing:.062em; margin-top:5px; color:#173e34;
-}
-@media(max-width:1100px) {
- .site-header .brand.bkm-logo-lockup {width:223px;}
- .site-header .bkm-logo-lockup__motto {font-size:11.1px;}
-}
-@media(max-width:720px) {
- .site-header .brand.bkm-logo-lockup {width:214px;}
- .site-header .bkm-logo-lockup__motto {font-size:10.8px;}
- .hero .hero__brand.bkm-logo-lockup {width:min(350px,100%)!important;padding:12px 15px 13px!important;}
- .hero .bkm-logo-lockup__motto {font-size:12.5px;letter-spacing:.045em;}
-}
-@media(max-width:480px) {
- .site-header .brand.bkm-logo-lockup {width:200px;}
- .hero .hero__brand.bkm-logo-lockup {width:min(310px,100%)!important;}
- .hero .bkm-logo-lockup__motto {font-size:11px;letter-spacing:.025em;}
-}
+/* Original BKM artwork and outlined brand lettering; no substitute typeface. */
+.site-header .brand.bkm-logo-lockup {display:block;flex:0 0 auto;width:280px;max-width:calc(100% - 64px);min-width:0;text-decoration:none;}
+.site-header .brand.bkm-logo-lockup img {display:block;width:100%;height:auto;max-width:none;filter:none;transform:none;}
+@media(max-width:1100px){.site-header .brand.bkm-logo-lockup{width:250px;}}
+@media(max-width:720px){.site-header .brand.bkm-logo-lockup{width:240px;}}
+@media(max-width:380px){.site-header .brand.bkm-logo-lockup{width:220px;}}
